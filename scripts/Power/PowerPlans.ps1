@@ -14,7 +14,7 @@ function Invoke-PowerCfg {
     $output
 }
 try {
-    if($Mode -eq 'Status'){$active=Get-ActivePlan;$computer=Get-CimInstance Win32_ComputerSystem;$type=if($computer.PCSystemType -eq 3){'Laptop'}else{'Desktop/Other'};"$($active.Name) [$($active.Guid)] | $type";exit 0}
+    if($Mode -eq 'Status'){$active=Get-ActivePlan;$type=Get-ApexDeviceType;"$($active.Name) [$($active.Guid)] | $type";exit 0}
     $dataPath=Get-ApexSnapshotPath 'power-plans'
     $state=if(Test-Path $dataPath){Get-Content $dataPath -Raw|ConvertFrom-Json}else{$null}
     if($Mode -eq 'Restore'){
@@ -44,6 +44,7 @@ try {
     }
     $ultimate=$schemes['Apex Ultimate Performance'];$performance=$schemes['Apex Performance'];$saver=$schemes['Apex Power Saver'];$laptop=$schemes['Apex Laptop Performance']
     Invoke-PowerCfg @('/setacvalueindex',$ultimate,'SUB_PROCESSOR','PROCTHROTTLEMAX','100')|Out-Null
+    Invoke-PowerCfg @('/setacvalueindex',$ultimate,'SUB_PROCESSOR','PROCTHROTTLEMIN','100')|Out-Null
     Invoke-PowerCfg @('/setacvalueindex',$ultimate,'SUB_PROCESSOR','PERFBOOSTMODE','2')|Out-Null
     Invoke-PowerCfg @('/setacvalueindex',$performance,'SUB_PROCESSOR','PROCTHROTTLEMAX','100')|Out-Null
     Invoke-PowerCfg @('/setacvalueindex',$performance,'SUB_PROCESSOR','PERFBOOSTMODE','3')|Out-Null
@@ -57,7 +58,6 @@ try {
     $active=Get-ActivePlan
     if($active.Guid -ne $schemes[$Name]){throw "Requested plan did not become active; active plan is $($active.Name)."}
     $log=Write-ApexLog 'Power Plan Select' 'Success' $active.Name
-    $computer=Get-CimInstance Win32_ComputerSystem
-    $type=if($computer.PCSystemType -eq 3){'Laptop'}else{'Desktop/Other'}
+    $type=Get-ApexDeviceType
     "Active plan: $($active.Name). Detected device: $type. Apex plans remain installed. Log: $log"
 }catch{$log=Write-ApexLog 'Power Plan' 'Failed' $_.Exception.Message;[Console]::Error.WriteLine("$($_.Exception.Message) Log: $log");exit 1}

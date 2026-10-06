@@ -29,10 +29,14 @@ try {
         $change='Flushed the DNS resolver cache because gateway and TCP reachability passed while DNS failed.'
     }
     $logMessage="$change Before=$($before.Category); After=$(if($after){$after.Category}else{'not re-tested'})"
-    $log=Write-ApexLog -Action 'Network Recovery' -Result 'Complete' -Message $logMessage
+    $resolved=$null -ne $after -and $after.Category -eq 'No fault detected'
+    $resultCode=if($Mode -eq 'Repair' -and $after -and -not $resolved){1}else{0}
+    $logResult=if($resultCode -eq 0){'Complete'}else{'Failed - connectivity remains impaired'}
+    $log=Write-ApexLog -Action 'Network Recovery' -Result $logResult -Message $logMessage
     $result=[pscustomobject]@{Change=$change;Before=$before;After=$after;Log=$log}|ConvertTo-Json -Depth 7
     if($Mode -eq 'Repair' -and -not $after){'No safe automatic repair was indicated. No adapter, driver, or network-stack reset was attempted.'}
     $result
+    if($resultCode -ne 0){[Console]::Error.WriteLine("The safe DNS repair did not restore connectivity. Before: $($before.Category). After: $($after.Category). Log: $log");exit $resultCode}
 }catch{
     $log=Write-ApexLog -Action 'Network Recovery' -Result 'Failed' -Message $_.Exception.Message
     [Console]::Error.WriteLine("$($_.Exception.Message) Log: $log")

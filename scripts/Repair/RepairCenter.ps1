@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Status','DismCheck','DismScan','DismRepair','SfcVerify','SfcRepair','WindowsUpdateDiagnose','WindowsUpdateRepair','InstallerDiagnose','InstallerRepair','ExplorerRepair','GamingServices','XboxSignIn','WinRE')]
+    [ValidateSet('Status','DismCheck','DismScan','DismRepair','SfcVerify','SfcRepair','WindowsUpdateDiagnose','WindowsUpdateRepair','WindowsUpdateRestore','InstallerDiagnose','InstallerRepair','ExplorerRepair','GamingServices','XboxSignIn','WinRE')]
     [string]$Mode='Status'
 )
 $ErrorActionPreference='Stop'
@@ -22,7 +22,7 @@ function Assert-Administrator {
 
 try {
     if($Mode -eq 'Status'){'Ready';exit 0}
-    if($Mode -in @('DismCheck','DismScan','DismRepair','SfcVerify','SfcRepair','WindowsUpdateRepair','InstallerRepair')){Assert-Administrator}
+    if($Mode -in @('DismCheck','DismScan','DismRepair','SfcVerify','SfcRepair','WindowsUpdateRepair','WindowsUpdateRestore','InstallerRepair')){Assert-Administrator}
 
     switch($Mode){
         'DismCheck' { Invoke-LoggedNative 'DISM CheckHealth' 'dism.exe' @('/Online','/Cleanup-Image','/CheckHealth') }
@@ -56,6 +56,40 @@ try {
             if($remaining.Count){throw "Windows Update caches were archived, but services failed to return to Running: $($remaining -join ', ')"}
             $log=Write-ApexLog 'Windows Update Repair' 'Success' "Archived: $($renamed -join '; '); services restarted. No reboot requested."
             "Archived cache directories: $($renamed -join ', ')`nWindows Update services restarted. No reboot was requested.`nLog: $log"
+        }
+        'WindowsUpdateRestore' {
+            $names=@('wuauserv','bits','cryptsvc')
+            $initial=@(Get-Service -Name $names|Select-Object Name,Status)
+            $running=@($initial|Where-Object Status -eq 'Running'|Select-Object -ExpandProperty Name)
+            $stamp=Get-Date -Format 'yyyyMMdd-HHmmss'
+            $pairs=foreach($folder in @('SoftwareDistribution','System32\catroot2')){
+                $source=Join-Path $env:windir $folder
+                $parent=Split-Path $source -Parent
+                $backup=Get-ChildItem -LiteralPath $parent -Directory -Filter "$(Split-Path $source -Leaf).ApexBackup-*" -ErrorAction SilentlyContinue|Sort-Object LastWriteTime -Descending|Select-Object -First 1
+                if($backup){[pscustomobject]@{Source=$source;Backup=$backup.FullName;Generated="$source.ApexGenerated-$stamp"}}
+            }
+            if(-not @($pairs).Count){throw 'No Apex Windows Update cache backup was found.'}
+            $completed=[Collections.Generic.List[object]]::new()
+            try{
+                foreach($service in $running){Stop-Service -Name $service -Force -ErrorAction Stop}
+                foreach($pair in $pairs){
+                    $completed.Add($pair)
+                    if(Test-Path -LiteralPath $pair.Source){Rename-Item -LiteralPath $pair.Source -NewName (Split-Path $pair.Generated -Leaf)}
+                    Rename-Item -LiteralPath $pair.Backup -NewName (Split-Path $pair.Source -Leaf)
+                }
+            }catch{
+                $rollback=@($completed.ToArray())
+                [Array]::Reverse($rollback)
+                foreach($pair in $rollback){
+                    if((Test-Path -LiteralPath $pair.Source) -and -not(Test-Path -LiteralPath $pair.Backup)){Rename-Item -LiteralPath $pair.Source -NewName (Split-Path $pair.Backup -Leaf) -ErrorAction SilentlyContinue}
+                    if(Test-Path -LiteralPath $pair.Generated){Rename-Item -LiteralPath $pair.Generated -NewName (Split-Path $pair.Source -Leaf) -ErrorAction SilentlyContinue}
+                }
+                throw
+            }finally{foreach($service in $running){Start-Service -Name $service -ErrorAction SilentlyContinue}}
+            $remaining=@(foreach($service in $running){$current=Get-Service -Name $service;if($current.Status -ne 'Running'){$service}})
+            if($remaining.Count){throw "Caches were restored, but services failed to return to Running: $($remaining -join ', ')"}
+            $log=Write-ApexLog 'Windows Update Restore' 'Success' "Restored: $(($pairs|ForEach-Object Backup)-join '; '); generated caches retained."
+            "Restored Windows Update cache folders. Newly generated caches remain as ApexGenerated directories.`nLog: $log"
         }
         'InstallerDiagnose' {
             $service=Get-CimInstance Win32_Service -Filter "Name='msiserver'"|Select-Object Name,State,StartMode,ExitCode

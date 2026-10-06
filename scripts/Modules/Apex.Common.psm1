@@ -40,6 +40,15 @@ function Test-ApexAdministrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Get-ApexDeviceType {
+    $system = Get-CimInstance -ClassName Win32_ComputerSystem
+    switch ([int]$system.PCSystemType) {
+        3 { return 'Desktop' }
+        { $_ -in 8, 9, 10, 11, 14 } { return 'Laptop/Portable' }
+        default { return "Unknown/Other (PCSystemType=$($system.PCSystemType))" }
+    }
+}
+
 function Get-ApexSnapshotPath {
     param([Parameter(Mandatory)][string]$Name)
     $directory = Get-ApexWritableDirectory (Join-Path $script:ApexRoot 'Backups\Settings') (Join-Path $env:LOCALAPPDATA 'ApexOS\Backups\Settings')
@@ -85,4 +94,4 @@ function Restore-ApexRegistrySnapshot {
     return $true
 }
 
-Export-ModuleMember -Function Get-ApexRoot, Get-ApexLogDirectory, Get-ApexBackupDirectory, Get-ApexSnapshotPath, Get-ApexSnapshotDirectory, Write-ApexLog, Test-ApexAdministrator, Save-ApexRegistrySnapshot, Restore-ApexRegistrySnapshot
+Export-ModuleMember -Function Get-ApexRoot, Get-ApexLogDirectory, Get-ApexBackupDirectory, Get-ApexSnapshotPath, Get-ApexSnapshotDirectory, Write-ApexLog, Test-ApexAdministrator, Get-ApexDeviceType, Save-ApexRegistrySnapshot, Restore-ApexRegistrySnapshot

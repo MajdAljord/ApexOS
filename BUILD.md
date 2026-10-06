@@ -24,3 +24,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Apex validation failed.' }
 Build validates first and writes `dist\ApexDesktop`. Copy that directory to `C:\Windows\ApexDesktop` to install. Building does not modify Windows or create an ISO. Launch `Apex Toolbox.exe`; begin with Diagnostics and Backup & Restore. Test changes in a disposable VM first.
 
 When the protected install directory is not writable, scripts and Toolbox logs fall back to `%LOCALAPPDATA%\ApexOS`. Some restore operations require elevation. Canceling UAC is reported as failure. No action automatically reboots Windows.
+
+Use [docs/WINDOWS-VM-TESTING.md](docs/WINDOWS-VM-TESTING.md) for the disposable-VM functional test matrix. Its checks have not been run as part of the Codespaces build.

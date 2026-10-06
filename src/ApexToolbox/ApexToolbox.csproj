@@ -15,4 +15,7 @@
     <Content Include="../../scripts/**/*.ps1" Link="scripts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/**/*.psm1" Link="scripts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="CreateApexInstallLayout" AfterTargets="Publish">
+    <MakeDir Directories="$(PublishDir)Tools;$(PublishDir)Packages;$(PublishDir)Wallpapers;$(PublishDir)Backups;$(PublishDir)Logs;$(PublishDir)Toolbox/ConfigurationServices;$(PublishDir)Toolbox/Scripts;$(PublishDir)Toolbox/Registry;$(PublishDir)Toolbox/Logs;$(PublishDir)Toolbox/config;$(PublishDir)Scripts/Performance;$(PublishDir)Scripts/Gaming;$(PublishDir)Scripts/RAMSaver;$(PublishDir)Scripts/Power;$(PublishDir)Scripts/Drivers;$(PublishDir)Scripts/Network;$(PublishDir)Scripts/Windows;$(PublishDir)Scripts/Explorer;$(PublishDir)Scripts/Security;$(PublishDir)Scripts/Repair;$(PublishDir)Scripts/Diagnostics;$(PublishDir)Scripts/Privacy;$(PublishDir)Scripts/Personalization;$(PublishDir)Scripts/Modules" />
+  </Target>
 </Project>

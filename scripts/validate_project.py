@@ -11,7 +11,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 errors = []
 if not shutil.which("dotnet"):
     errors.append("Missing dependency: .NET SDK (dotnet)")
-for name in ("README.md", "BUILD.md", "CONTRIBUTING.md", "LICENSE", "config/toolbox.json", "config/protected-components.json", "src/ApexToolbox/ApexToolbox.csproj", "scripts/Modules/Apex.Common.psm1"):
+for name in ("README.md", "BUILD.md", "CONTRIBUTING.md", "LICENSE", "docs/WINDOWS-VM-TESTING.md", "config/toolbox.json", "config/protected-components.json", "src/ApexToolbox/ApexToolbox.csproj", "scripts/Modules/Apex.Common.psm1", "scripts/TestApexWindows.ps1"):
     if not (root / name).is_file():
         errors.append(f"Missing required file: {name}")
 try:
@@ -19,6 +19,11 @@ try:
 except (OSError, json.JSONDecodeError) as exc:
     errors.append(f"Invalid toolbox JSON: {exc}")
     config = {"actions": []}
+for config_file in (root / "config").glob("*.json"):
+    try:
+        json.loads(config_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"Invalid JSON in {config_file.relative_to(root)}: {exc}")
 seen = set()
 for action in config.get("actions", []):
     key = action.get("id", "")

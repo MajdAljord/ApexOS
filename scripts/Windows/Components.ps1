@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Status','Report','PackageStatus','ListOptional','RemoveOptional','RestoreOptional','StoreStatus','StoreRemove','StoreRestore','EdgeStatus','WebView2Status','OpenStoreSettings')]
+    [ValidateSet('Status','Report','PackageStatus','ListOptional','RemoveOptional','RestoreOptional','StoreStatus','StoreRemove','StoreRestore','EdgeStatus','WebView2Status','WebView2Repair','OpenStoreSettings')]
     [string]$Mode='Status',
     [string]$Name=''
 )
@@ -111,6 +111,19 @@ try {
         'WebView2Status' {
             $runtime=Get-WebViewRuntime
             if($runtime){"WebView2 Runtime: installed ($($runtime.Version)) at $($runtime.Path)"}else{'WebView2 Runtime: not detected; Edge Browser status is separate.'}
+            exit 0
+        }
+        'WebView2Repair' {
+            $installer=Join-Path (Get-ApexRoot) 'Tools\MicrosoftEdgeWebView2Setup.exe'
+            if(-not(Test-Path -LiteralPath $installer)){throw "Official WebView2 Evergreen installer is not staged at $installer. Download it from Microsoft and place it there; Apex does not bundle or download it."}
+            $signature=Get-AuthenticodeSignature -LiteralPath $installer
+            if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation'){throw 'The staged WebView2 installer does not have a valid Microsoft Corporation signature.'}
+            $process=Start-Process -FilePath $installer -ArgumentList @('/silent','/install') -Wait -PassThru
+            if($process.ExitCode -ne 0){throw "Microsoft WebView2 installer failed with exit code $($process.ExitCode)."}
+            $runtime=Get-WebViewRuntime
+            if(-not $runtime){throw 'The installer exited successfully, but WebView2 Runtime is still not detected.'}
+            $log=Write-ApexLog -Action 'WebView2 Runtime Repair' -Result 'Success' -Message "Version=$($runtime.Version); Path=$($runtime.Path)"
+            "WebView2 Runtime detected after installer run: $($runtime.Version). Edge Browser was not changed. Log: $log"
             exit 0
         }
         'OpenStoreSettings' {

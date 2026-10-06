@@ -7,7 +7,7 @@ try {
     $computer=Get-CimInstance Win32_ComputerSystem
     $os=Get-CimInstance Win32_OperatingSystem
     $build=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-    $type=if($computer.PCSystemType -eq 3){'Laptop'}else{'Desktop/Other'}
+    $type=Get-ApexDeviceType
     $board=Get-CimInstance Win32_BaseBoard|Select-Object Manufacturer,Product,Version
     $cpu=Get-CimInstance Win32_Processor|Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed
     $gpu=Get-CimInstance Win32_VideoController|Select-Object Name,DriverVersion,DriverDate,AdapterRAM

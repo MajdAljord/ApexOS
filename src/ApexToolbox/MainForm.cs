@@ -162,7 +162,8 @@ internal sealed class MainForm : Form
         {
             status.Text = $"Running {task.Action.Title} ({completed + 1} of {tasks.Count})...";
             var outcome = await ScriptRunner.RunAsync(ResolveScript(task.Action.Script), task.Arguments, task.Action.RequiresAdmin);
-            var logPath = WriteLog($"First run | {task.Action.Title} | {task.Action.Script}", outcome.ExitCode, outcome.StandardError);
+            var detail = $"STDOUT:\n{outcome.StandardOutput}\nSTDERR:\n{outcome.StandardError}";
+            var logPath = WriteLog($"First run | {task.Action.Title} | {task.Action.Script}", outcome.ExitCode, detail);
             if (outcome.ExitCode != 0)
             {
                 status.Text = $"Setup stopped at {task.Action.Title}.";
@@ -234,7 +235,7 @@ internal sealed class MainForm : Form
         buttons.Controls.Add(apply);
         if (action.RestoreArgs.Count > 0)
         {
-            var restore = ButtonFor("Restore", false);
+            var restore = ButtonFor(string.IsNullOrWhiteSpace(action.RestoreText) ? "Restore" : action.RestoreText, false);
                         restore.Enabled = _windows.IsWindows11;
             restore.Click += async (_, _) => await RunActionAsync(action, action.RestoreArgs, card);
             buttons.Controls.Add(restore);
@@ -303,7 +304,8 @@ internal sealed class MainForm : Form
         try
         {
             var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), arguments, action.RequiresAdmin);
-            var logPath = WriteLog($"{action.Title} | {action.Script}", result.ExitCode, result.StandardError);
+            var detail = $"STDOUT:\n{result.StandardOutput}\nSTDERR:\n{result.StandardError}";
+            var logPath = WriteLog($"{action.Title} | {action.Script}", result.ExitCode, detail);
             var text = result.ExitCode == 0
                 ? $"Completed successfully.\n\n{result.StandardOutput.Trim()}"
                 : $"Failed (exit code {result.ExitCode}).\n{result.StandardError.Trim()}\n{result.StandardOutput.Trim()}\n\nLog: {logPath}";
@@ -389,6 +391,8 @@ internal sealed class MainForm : Form
         var buildValue = key?.GetValue("CurrentBuildNumber") as string;
         var build = int.TryParse(buildValue, out var parsed) ? parsed : Environment.OSVersion.Version.Build;
         var isWindows11 = Environment.OSVersion.Version.Major >= 10 && build >= 22000 && !product.Contains("Server", StringComparison.OrdinalIgnoreCase);
+        if (isWindows11 && product.StartsWith("Windows 10", StringComparison.OrdinalIgnoreCase))
+            product = "Windows 11" + product["Windows 10".Length..];
         return new WindowsDetails(product, build, release, isWindows11);
     }
 
