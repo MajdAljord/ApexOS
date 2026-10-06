@@ -1,0 +1,5 @@
+# Feature status
+
+Implemented actions are listed in `config/toolbox.json` and launch separate PowerShell scripts. The Toolbox includes navigation for all requested categories; a category with no action explicitly says “Not implemented yet.” Power profiles clone Windows Balanced, apply limited processor policies, and can restore the previously selected plan; created plans remain installed. RAM Saver currently provides one reversible background-app restriction, not separate Balanced/Aggressive modes. Diagnostics and driver/network reports are read-only. System-file repair runs DISM then SFC and requires elevation. No scripts reboot automatically.
+
+App removal, Store/Edge image servicing, Chrome/NanaZip configuration, startup control, GPU preferences, automatic driver repair, broad privacy tuning, and ISO generation remain unimplemented. Windows 11 26H2 and physical hardware require testing on a corresponding supported Windows installation.

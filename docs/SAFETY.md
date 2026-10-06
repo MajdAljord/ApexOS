@@ -1,0 +1,7 @@
+# Safety
+
+Apex does not automatically disable services, remove Windows packages, remove Edge/WebView2, disable Defender, alter Windows Update, or reset network adapters. Protected dependencies include Windows Update, Security, Installer, WinRE, Plug and Play, networking, Bluetooth, audio, USB, DirectX, .NET, Visual C++, WebView2, Microsoft/Xbox sign-in, Gaming Services, activation, Explorer, Task Manager, Device Manager, and Event Viewer.
+
+Implemented changes are limited to current-user visual effects, Game Mode/Game DVR preferences, supported Store-app background activity, and Explorer's context menu. The first apply snapshots registry values; restore uses that snapshot where supported. Backups cover Apex files and known snapshots, not the complete Windows installation or arbitrary third-party settings.
+
+Power profiles clone Windows Balanced, make limited processor changes, and save the previously selected scheme for restoration. Created Apex plans remain installed after restore. Component removal, browser/archive setup, automatic driver repair, service/privacy tuning, and first-run setup are not implemented. Do not infer that an unlisted Windows build has been tested. Restore points may be unavailable due to Windows policy.

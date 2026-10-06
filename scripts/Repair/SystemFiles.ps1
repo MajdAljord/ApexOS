@@ -1,0 +1,4 @@
+param([ValidateSet('Status','Repair')][string]$Mode='Status')
+$ErrorActionPreference='Stop'
+Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
+try {if($Mode -eq 'Status'){'Ready';exit 0};if(-not(Test-ApexAdministrator)){throw 'Run repair as administrator.'};$dism=Start-Process dism.exe -ArgumentList '/Online','/Cleanup-Image','/RestoreHealth' -Wait -PassThru -NoNewWindow;if($dism.ExitCode -ne 0){throw "DISM failed with exit code $($dism.ExitCode); SFC was not run."};$sfc=Start-Process sfc.exe -ArgumentList '/scannow' -Wait -PassThru -NoNewWindow;if($sfc.ExitCode -notin 0,1){throw "SFC failed with exit code $($sfc.ExitCode)."};$log=Write-ApexLog 'System File Repair' 'Success' "DISM=$($dism.ExitCode); SFC=$($sfc.ExitCode)";"DISM and SFC completed; review Windows logs. Apex log: $log"}catch{$log=Write-ApexLog 'System File Repair' 'Failed' $_.Exception.Message;[Console]::Error.WriteLine("$($_.Exception.Message) Log: $log");exit 1}

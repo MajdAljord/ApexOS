@@ -1,0 +1,4 @@
+param([ValidateSet('Status','Create')][string]$Mode='Status')
+$ErrorActionPreference='Stop'
+Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
+try {if($Mode -eq 'Status'){'Ready';exit 0};if(-not(Test-ApexAdministrator)){throw 'Run restore-point creation as administrator.'};Checkpoint-Computer -Description 'Apex OS configuration change' -RestorePointType MODIFY_SETTINGS;$log=Write-ApexLog 'Windows Restore Point' 'Success';"Restore point requested. Log: $log"}catch{$log=Write-ApexLog 'Windows Restore Point' 'Failed' $_.Exception.Message;[Console]::Error.WriteLine("$($_.Exception.Message) Log: $log");exit 1}

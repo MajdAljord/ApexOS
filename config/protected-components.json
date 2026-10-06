@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "neverRemoveAutomatically": [
+    "Windows Update",
+    "Windows Security and Microsoft Defender",
+    "Windows Installer",
+    "Windows Recovery Environment",
+    "Plug and Play",
+    "Windows Driver Frameworks",
+    "Networking",
+    "Bluetooth",
+    "Audio",
+    "USB",
+    "DirectX",
+    ".NET",
+    "Visual C++ runtimes",
+    "WebView2 Runtime",
+    "Microsoft and Xbox authentication",
+    "Gaming Services",
+    "Windows activation and licensing",
+    "File Explorer",
+    "Task Manager",
+    "Device Manager",
+    "Event Viewer"
+  ]
+}

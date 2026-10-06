@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Apex Toolbox</AssemblyName>
+    <RootNamespace>ApexToolbox</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="../../config/toolbox.json" Link="Toolbox/config/toolbox.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../config/protected-components.json" Link="Toolbox/config/protected-components.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/**/*.ps1" Link="scripts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/**/*.psm1" Link="scripts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
