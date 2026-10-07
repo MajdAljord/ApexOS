@@ -47,8 +47,11 @@ if ($config) {
 }
 
 $scriptRoot = Join-Path $root 'scripts'
+$scriptDirectories = @($scriptRoot, (Join-Path $root 'playbook-source/Executables'))
 $hashes = @{}
-Get-ChildItem -LiteralPath $scriptRoot -Recurse -File | Where-Object { $_.Extension -in '.ps1','.psm1' } | ForEach-Object {
+foreach ($scriptDirectory in $scriptDirectories) {
+    if (-not (Test-Path -LiteralPath $scriptDirectory -PathType Container)) { continue }
+    Get-ChildItem -LiteralPath $scriptDirectory -Recurse -File | Where-Object { $_.Extension -in '.ps1','.psm1' } | ForEach-Object {
     $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
     if ($hashes.ContainsKey($hash)) { $issues.Add("Duplicate script content: $($_.FullName) and $($hashes[$hash])") }
     else { $hashes[$hash] = $_.FullName }
@@ -56,6 +59,7 @@ Get-ChildItem -LiteralPath $scriptRoot -Recurse -File | Where-Object { $_.Extens
     $parseErrors = $null
     [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$parseErrors) | Out-Null
     foreach ($parseError in $parseErrors) { $issues.Add("PowerShell syntax error in $($_.Name): $($parseError.Message)") }
+    }
 }
 
 Get-ChildItem -LiteralPath $root -Recurse -Filter '*.reg' | ForEach-Object {

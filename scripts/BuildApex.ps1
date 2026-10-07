@@ -1,12 +1,30 @@
-param([string]$Configuration = 'Release')
+param(
+    [string]$Configuration = 'Release',
+    [string]$RuntimeIdentifier,
+    [switch]$SelfContained
+)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if ($SelfContained -and [string]::IsNullOrWhiteSpace($RuntimeIdentifier)) {
+    throw 'A runtime identifier is required for a self-contained Apex Toolbox publish.'
+}
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'ValidateProject.ps1')
 if ($LASTEXITCODE -ne 0) { throw "Project validation failed with exit code $LASTEXITCODE." }
 
 $output = Join-Path $root 'dist/ApexDesktop'
-dotnet publish (Join-Path $root 'src/ApexToolbox/ApexToolbox.csproj') --configuration $Configuration --output $output
+$publishArguments = @(
+    (Join-Path $root 'src/ApexToolbox/ApexToolbox.csproj'),
+    '--configuration', $Configuration,
+    '--output', $output
+)
+if (-not [string]::IsNullOrWhiteSpace($RuntimeIdentifier)) {
+    $publishArguments += @('--runtime', $RuntimeIdentifier)
+}
+if ($SelfContained) {
+    $publishArguments += @('--self-contained', 'true')
+}
+dotnet publish @publishArguments
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
 $folders = @(
@@ -21,12 +39,16 @@ foreach ($folder in $folders) {
 }
 $wallpaperSource = Join-Path $root 'Wallpapers'
 $wallpaperDestination = Join-Path $output 'Wallpapers'
+if (Test-Path -LiteralPath $wallpaperDestination) {
+    Remove-Item -LiteralPath $wallpaperDestination -Recurse -Force
+}
+New-Item -Path $wallpaperDestination -ItemType Directory -Force | Out-Null
 if (Test-Path -LiteralPath $wallpaperSource -PathType Container) {
-    Get-ChildItem -LiteralPath $wallpaperSource -File | ForEach-Object {
+    Get-ChildItem -LiteralPath $wallpaperSource -File |
+        Where-Object { $_.Extension -in '.jpg', '.jpeg', '.png', '.bmp', '.webp' } |
+        ForEach-Object {
         $destination = Join-Path $wallpaperDestination $_.Name
-        if (-not (Test-Path -LiteralPath $destination)) {
-            Copy-Item -LiteralPath $_.FullName -Destination $destination
-        }
+        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
     }
 }
 Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $output 'README.md') -Force

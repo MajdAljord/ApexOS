@@ -1,0 +1,9 @@
+title: Install Apex OS
+description: Install the Apex Toolbox and its existing scripts, configuration, and wallpaper library
+privilege: Admin
+actions:
+  - !status: {status: 'Installing Apex OS components'}
+  - !powerShell:
+      command: "& '.\\Install-Apex.ps1'"
+      exeDir: true
+      runas: currentUserElevated

@@ -1,0 +1,5 @@
+title: Apex OS
+description: Install and configure Apex OS components
+privilege: Admin
+actions:
+  - !task: {path: 'tasks/install-apex.yml'}

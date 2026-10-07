@@ -24,6 +24,12 @@ for config_file in (root / "config").glob("*.json"):
         json.loads(config_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"Invalid JSON in {config_file.relative_to(root)}: {exc}")
+playbook_validator = root / "scripts/validate_playbook.py"
+if playbook_validator.is_file():
+    import subprocess
+    result = subprocess.run([sys.executable, str(playbook_validator)], capture_output=True, text=True)
+    if result.returncode:
+        errors.extend(line.removeprefix("ERROR: ").strip() for line in result.stderr.splitlines() if line.strip())
 seen = set()
 for action in config.get("actions", []):
     key = action.get("id", "")
