@@ -52,13 +52,13 @@ $hashes = @{}
 foreach ($scriptDirectory in $scriptDirectories) {
     if (-not (Test-Path -LiteralPath $scriptDirectory -PathType Container)) { continue }
     Get-ChildItem -LiteralPath $scriptDirectory -Recurse -File | Where-Object { $_.Extension -in '.ps1','.psm1' } | ForEach-Object {
-    $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-    if ($hashes.ContainsKey($hash)) { $issues.Add("Duplicate script content: $($_.FullName) and $($hashes[$hash])") }
-    else { $hashes[$hash] = $_.FullName }
-    $tokens = $null
-    $parseErrors = $null
-    [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$parseErrors) | Out-Null
-    foreach ($parseError in $parseErrors) { $issues.Add("PowerShell syntax error in $($_.Name): $($parseError.Message)") }
+        $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+        if ($hashes.ContainsKey($hash)) { $issues.Add("Duplicate script content: $($_.FullName) and $($hashes[$hash])") }
+        else { $hashes[$hash] = $_.FullName }
+        $tokens = $null
+        $parseErrors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$parseErrors) | Out-Null
+        foreach ($parseError in $parseErrors) { $issues.Add("PowerShell syntax error in $($_.Name): $($parseError.Message)") }
     }
 }
 

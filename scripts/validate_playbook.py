@@ -137,8 +137,8 @@ def validate_project_links(payload: pathlib.Path | None) -> None:
     require_file(module, "Apex common PowerShell module")
     wallpaper_source = ROOT / "Wallpapers"
     if payload is not None:
-        if not any((payload / name).is_file() for name in ("Apex Toolbox.exe", "Apex Toolbox.dll")):
-            errors.append("Published Apex Toolbox executable/app assembly is missing.")
+        for bundled_runtime_file in ("Apex Toolbox.exe", "coreclr.dll", "hostfxr.dll", "hostpolicy.dll"):
+            require_file(payload / bundled_runtime_file, "self-contained Windows Toolbox runtime file")
         require_file(payload / "Toolbox" / "config" / "toolbox.json", "packaged Toolbox configuration")
         require_file(payload / "Toolbox" / "config" / "protected-components.json", "packaged protected-components configuration")
         require_file(payload / "scripts" / "Modules" / "Apex.Common.psm1", "packaged Apex common module")
