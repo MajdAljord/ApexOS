@@ -1,9 +1,23 @@
-param([ValidateSet('Status','Set','Restore','OpenLockScreen')][string]$Mode='Status',[ValidateSet('Apex-Dark.png','Apex-Light.png','Apex-Gaming.png','Apex-Desktop.png','Apex-LockScreen.png')][string]$Name='Apex-Dark.png')
+param(
+    [ValidateSet('List','Status','Set','Restore','OpenLockScreen')][string]$Mode='Status',
+    [string]$Name='Apex-Dark.jpg'
+)
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
 $wallpaperDirectory=Join-Path (Get-ApexRoot) 'Wallpapers'
-$wallpaper=Join-Path $wallpaperDirectory $Name
 $wallpaperKey='HKCU:\Control Panel\Desktop'
+$supportedExtensions=@('.jpg','.jpeg','.png','.bmp','.webp')
+
+function Get-WallpaperPath {
+    param([string]$FileName)
+    if([string]::IsNullOrWhiteSpace($FileName) -or [IO.Path]::GetFileName($FileName) -ne $FileName){
+        throw 'Select a wallpaper file from the Apex Wallpapers folder.'
+    }
+    if([IO.Path]::GetExtension($FileName).ToLowerInvariant() -notin $supportedExtensions){
+        throw "Unsupported wallpaper format: $FileName"
+    }
+    return Join-Path $wallpaperDirectory $FileName
+}
 
 function Set-DesktopWallpaper {
     param([string]$Path)
@@ -23,7 +37,17 @@ public static class ApexDesktopWallpaper {
 }
 
 try {
+    if($Mode -eq 'List'){
+        if(Test-Path -LiteralPath $wallpaperDirectory -PathType Container){
+            Get-ChildItem -LiteralPath $wallpaperDirectory -File |
+                Where-Object { $_.Extension.ToLowerInvariant() -in $supportedExtensions } |
+                Sort-Object Name |
+                ForEach-Object { $_.Name }
+        }
+        exit 0
+    }
     if($Mode -eq 'Status'){
+        $wallpaper=Get-WallpaperPath -FileName $Name
         if(-not(Test-Path -LiteralPath $wallpaper)){"Missing: $wallpaper";exit 0}
         $current=(Get-ItemProperty -LiteralPath $wallpaperKey -Name WallPaper -ErrorAction SilentlyContinue).WallPaper
         if($current -and [IO.Path]::GetFullPath($current) -eq [IO.Path]::GetFullPath($wallpaper)){"Applied: $Name"}else{"Available: $Name"}
@@ -40,9 +64,9 @@ try {
         "Previous desktop wallpaper restored. Log: $log"
         exit 0
     }
+    $wallpaper=Get-WallpaperPath -FileName $Name
     if(-not(Test-Path -LiteralPath $wallpaper)){throw "Wallpaper file is missing: $wallpaper"}
-    if($Name -eq 'Apex-LockScreen.png'){
-        if($Mode -ne 'OpenLockScreen'){throw 'The lock-screen image must be selected through Windows Personalization settings.'}
+    if($Mode -eq 'OpenLockScreen'){
         Start-Process 'ms-settings:lockscreen'
         $log=Write-ApexLog -Action 'Lock Screen Wallpaper' -Result 'Success' -Message "Opened settings for $wallpaper"
         "Opened Windows Lock screen settings. Select $wallpaper manually; Apex does not claim it was applied.`nLog: $log"
@@ -54,4 +78,9 @@ try {
     if([IO.Path]::GetFullPath($actual) -ne [IO.Path]::GetFullPath($wallpaper)){throw 'Windows did not retain the requested desktop wallpaper path.'}
     $log=Write-ApexLog -Action 'Desktop Wallpaper' -Result 'Success' -Message $wallpaper
     "Desktop wallpaper set to $Name. Log: $log"
-}catch{$log=Write-ApexLog -Action 'Wallpaper' -Result 'Failed' -Message $_.Exception.Message;[Console]::Error.WriteLine("$($_.Exception.Message) Log: $log");exit 1}
+}catch{
+    try { $log=Write-ApexLog -Action 'Wallpaper' -Result 'Failed' -Message $_.Exception.Message }
+    catch { $log='Failure could not be written to the Apex log.' }
+    [Console]::Error.WriteLine("$($_.Exception.Message) Log: $log")
+    exit 1
+}

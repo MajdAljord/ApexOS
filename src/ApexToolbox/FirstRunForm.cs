@@ -38,10 +38,17 @@ internal sealed class FirstRunForm : Form
         Font = new Font("Segoe UI", 9.5F);
 
         var wallpaperDirectory = Path.Combine(apexRoot, "Wallpapers");
-        var availableWallpapers = new[] { "Apex-Dark.png", "Apex-Light.png", "Apex-Gaming.png", "Apex-Desktop.png" }
-            .Where(name => File.Exists(Path.Combine(wallpaperDirectory, name))).ToArray();
-        _wallpaper = Choice(new[] { "None", "Apex-Dark.png", "Apex-Light.png", "Apex-Gaming.png", "Apex-Desktop.png" }
-            .Where(name => name == "None" || availableWallpapers.Contains(name)).ToArray());
+        var availableWallpapers = Directory.Exists(wallpaperDirectory)
+            ? Directory.EnumerateFiles(wallpaperDirectory)
+                .Where(path => new[] { ".jpg", ".jpeg", ".png", ".bmp", ".webp" }
+                    .Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .Cast<string>()
+                .ToArray()
+            : [];
+        _wallpaper = Choice(new[] { "None" }.Concat(availableWallpapers).ToArray());
 
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(26, 22, 26, 18), RowCount = 4, ColumnCount = 1 };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));

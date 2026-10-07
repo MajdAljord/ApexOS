@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^command -v dotnet \\|\\| true; command -v pwsh \\|\\| true; ls -la Wallpapers$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

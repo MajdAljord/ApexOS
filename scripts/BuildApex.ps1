@@ -19,5 +19,15 @@ $folders = @(
 foreach ($folder in $folders) {
     New-Item -Path (Join-Path $output $folder) -ItemType Directory -Force | Out-Null
 }
+$wallpaperSource = Join-Path $root 'Wallpapers'
+$wallpaperDestination = Join-Path $output 'Wallpapers'
+if (Test-Path -LiteralPath $wallpaperSource -PathType Container) {
+    Get-ChildItem -LiteralPath $wallpaperSource -File | ForEach-Object {
+        $destination = Join-Path $wallpaperDestination $_.Name
+        if (-not (Test-Path -LiteralPath $destination)) {
+            Copy-Item -LiteralPath $_.FullName -Destination $destination
+        }
+    }
+}
 Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $output 'README.md') -Force
 Write-Output "Apex Toolbox build complete: $output"

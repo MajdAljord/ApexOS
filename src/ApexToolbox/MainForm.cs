@@ -132,15 +132,8 @@ internal sealed class MainForm : Form
         }
         if (selection.ExplorerMenu == "Classic Windows context menu") AddAction("explorer-context");
         if (selection.ExplorerMenu == "Windows 11 context menu") AddAction("explorer-context-windows11");
-        var wallpaperId = selection.Wallpaper switch
-        {
-            "Apex-Dark.png" => "wallpaper-dark",
-            "Apex-Light.png" => "wallpaper-light",
-            "Apex-Gaming.png" => "wallpaper-gaming",
-            "Apex-Desktop.png" => "wallpaper-desktop",
-            _ => null
-        };
-        if (wallpaperId is not null) AddAction(wallpaperId);
+        if (selection.Wallpaper != "None")
+            AddAction("wallpaper-browser", ["-Mode", "Set", "-Name", selection.Wallpaper]);
         if (selection.EnableGaming) AddAction("gaming-mode");
         if (selection.SetChromeDefault) AddAction("chrome-default");
         if (selection.ConfigureNanaZip) AddAction("nanazip-configure");
@@ -203,8 +196,20 @@ internal sealed class MainForm : Form
             return;
         }
         var actions = _config.Actions.Where(action => action.Category == category).ToList();
+        if (category == "Personalization")
+        {
+            var wallpaperAction = actions.FirstOrDefault(action => action.Id == "wallpaper-browser");
+            if (wallpaperAction is not null)
+            {
+                var browser = CreateWallpaperBrowser(wallpaperAction);
+                _actions.Controls.Add(browser);
+                await RefreshWallpaperListAsync(wallpaperAction, browser);
+                actions.Remove(wallpaperAction);
+            }
+        }
         if (actions.Count == 0)
         {
+            if (_actions.Controls.Count > 0) return;
             var text = category == "Advanced"
                 ? "These settings can affect Windows compatibility. Only change them if you understand what they do.\n\nNot implemented yet"
                 : "Not implemented yet";
@@ -219,7 +224,126 @@ internal sealed class MainForm : Form
         }
     }
 
-    private Control CreateCard(ToolboxAction action)
+    private Control CreateWallpaperBrowser(ToolboxAction action)
+        {
+            var card = new Panel { Width = Math.Max(480, _actions.ClientSize.Width - 34), Height = 248, BackColor = Color.FromArgb(29, 35, 41), Margin = new Padding(0, 0, 0, 12), Padding = new Padding(16) };
+            card.Controls.Add(new Label { Text = action.Title, Dock = DockStyle.Top, Height = 30, Font = new Font("Segoe UI Semibold", 12) });
+            card.Controls.Add(new Label { Text = $"{action.Description} Supported formats: JPG, JPEG, PNG, BMP, and WebP where Windows supports it.", Dock = DockStyle.Top, Height = 44, ForeColor = Color.FromArgb(174, 184, 191) });
+
+            var wallpaperChoice = new ComboBox { Name = "wallpaper-choice", Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(25, 30, 36), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Height = 32 };
+            wallpaperChoice.SelectedIndexChanged += async (_, _) => await RefreshWallpaperStatusAsync(action, card);
+            card.Controls.Add(wallpaperChoice);
+
+            var status = new Label { Name = "wallpaper-status", Text = "Status: scanning wallpaper folder...", Dock = DockStyle.Top, Height = 30, ForeColor = Color.FromArgb(116, 219, 186), TextAlign = ContentAlignment.MiddleLeft };
+            card.Controls.Add(status);
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 74, FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+            var refresh = ButtonFor("Refresh", false);
+            refresh.Width = 90;
+            refresh.Enabled = _windows.IsWindows11;
+            refresh.Click += async (_, _) => await RefreshWallpaperListAsync(action, card);
+            buttons.Controls.Add(refresh);
+
+            var apply = ButtonFor("Set desktop", true);
+            apply.Width = 110;
+            apply.Enabled = _windows.IsWindows11;
+            apply.Click += async (_, _) => await RunSelectedWallpaperAsync(action, card, "Set");
+            buttons.Controls.Add(apply);
+
+            var setDefault = ButtonFor("Apex default", false);
+            setDefault.Width = 110;
+            setDefault.Enabled = _windows.IsWindows11;
+            setDefault.Click += async (_, _) => await RunWallpaperAsync(action, card, "Set", "Apex-Dark.jpg");
+            buttons.Controls.Add(setDefault);
+
+            var lockScreen = ButtonFor("Lock screen...", false);
+            lockScreen.Width = 120;
+            lockScreen.Enabled = _windows.IsWindows11;
+            lockScreen.Click += async (_, _) => await RunSelectedWallpaperAsync(action, card, "OpenLockScreen");
+            buttons.Controls.Add(lockScreen);
+
+            var apexLockScreen = ButtonFor("Apex lock screen", false);
+            apexLockScreen.Width = 130;
+            apexLockScreen.Enabled = _windows.IsWindows11;
+            apexLockScreen.Click += async (_, _) => await RunWallpaperAsync(action, card, "OpenLockScreen", "Apex-LockScreen-Dark.jpg");
+            buttons.Controls.Add(apexLockScreen);
+
+            var restore = ButtonFor("Restore previous", false);
+            restore.Width = 130;
+            restore.Enabled = _windows.IsWindows11;
+            restore.Click += async (_, _) => await RunActionAsync(action, ["-Mode", "Restore"], card);
+            buttons.Controls.Add(restore);
+            card.Controls.Add(buttons);
+            return card;
+        }
+
+        private async Task RefreshWallpaperListAsync(ToolboxAction action, Control card)
+        {
+            var choice = card.Controls.Find("wallpaper-choice", true).FirstOrDefault() as ComboBox;
+            var status = card.Controls.Find("wallpaper-status", true).FirstOrDefault() as Label;
+            if (choice is null || status is null) return;
+            try
+            {
+                var selected = choice.SelectedItem as string;
+                var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), ["-Mode", "List"], false);
+                if (result.ExitCode != 0) throw new InvalidOperationException(result.StandardError.Trim());
+                var wallpapers = result.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                choice.BeginUpdate();
+                choice.Items.Clear();
+                choice.Items.AddRange(wallpapers);
+                var index = Array.FindIndex(wallpapers, name => string.Equals(name, selected, StringComparison.OrdinalIgnoreCase));
+                if (index < 0) index = Array.FindIndex(wallpapers, name => string.Equals(name, "Apex-Dark.jpg", StringComparison.OrdinalIgnoreCase));
+                choice.SelectedIndex = index >= 0 ? index : wallpapers.Length > 0 ? 0 : -1;
+                choice.EndUpdate();
+                if (wallpapers.Length == 0) status.Text = "No supported image files found in the Wallpapers folder.";
+                else await RefreshWallpaperStatusAsync(action, card);
+            }
+            catch (Exception exception)
+            {
+                status.Text = "Status: wallpaper scan failed.";
+                status.ForeColor = Color.FromArgb(240, 147, 126);
+                var logPath = WriteLog("Wallpaper library refresh", 1, exception.ToString());
+                MessageBox.Show(this, $"Could not scan the Apex Wallpapers folder. {exception.Message}\nLog: {logPath}", "Apex Toolbox", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task RefreshWallpaperStatusAsync(ToolboxAction action, Control card)
+        {
+            var choice = card.Controls.Find("wallpaper-choice", true).FirstOrDefault() as ComboBox;
+            var status = card.Controls.Find("wallpaper-status", true).FirstOrDefault() as Label;
+            if (choice?.SelectedItem is not string name || status is null) return;
+            try
+            {
+                var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), ["-Mode", "Status", "-Name", name], false);
+                var state = result.StandardOutput.Trim();
+                status.Text = result.ExitCode == 0 ? $"Status: {state}" : $"Status: unavailable — {result.StandardError.Trim()}";
+                status.ForeColor = result.ExitCode == 0 ? Color.FromArgb(116, 219, 186) : Color.FromArgb(240, 147, 126);
+            }
+            catch (Exception exception)
+            {
+                status.Text = $"Status: unavailable — {exception.Message}";
+                status.ForeColor = Color.FromArgb(240, 147, 126);
+            }
+        }
+
+        private async Task RunSelectedWallpaperAsync(ToolboxAction action, Control card, string mode)
+        {
+            var choice = card.Controls.Find("wallpaper-choice", true).FirstOrDefault() as ComboBox;
+            if (choice?.SelectedItem is not string name)
+            {
+                MessageBox.Show(this, "Select an image from the wallpaper library first.", "Apex Toolbox", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            await RunWallpaperAsync(action, card, mode, name);
+        }
+
+        private async Task RunWallpaperAsync(ToolboxAction action, Control card, string mode, string name)
+        {
+            await RunActionAsync(action, ["-Mode", mode, "-Name", name], card);
+        }
+
+        private Control CreateCard(ToolboxAction action)
     {
         var card = new Panel { Width = Math.Max(480, _actions.ClientSize.Width - 34), Height = 142, BackColor = Color.FromArgb(29, 35, 41), Margin = new Padding(0, 0, 0, 12), Padding = new Padding(16) };
         card.Controls.Add(new Label { Text = action.Title, Dock = DockStyle.Top, Height = 30, Font = new Font("Segoe UI Semibold", 12) });
