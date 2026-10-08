@@ -52,6 +52,11 @@ New-Item -Path $stage -ItemType Directory -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $playbookSource 'playbook.conf') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $playbookSource 'Configuration') -Destination $stage -Recurse
 Copy-Item -LiteralPath (Join-Path $playbookSource 'Executables') -Destination $stage -Recurse
+$playbookIcon = Join-Path $root 'src/ApexToolbox/Assets/ApexOSPlaybookIcon.png'
+if (Test-Path -LiteralPath $playbookIcon -PathType Leaf) {
+    New-Item -Path (Join-Path $stage 'Assets') -ItemType Directory -Force | Out-Null
+    Copy-Item -LiteralPath $playbookIcon -Destination (Join-Path $stage 'Assets/ApexOSPlaybookIcon.png') -Force
+}
 $payloadStage = Join-Path $stage 'Executables\ApexDesktop'
 New-Item -Path $payloadStage -ItemType Directory -Force | Out-Null
 Get-ChildItem -LiteralPath $payload -Force | ForEach-Object {
@@ -65,7 +70,7 @@ Get-ChildItem -LiteralPath $stage -Force -Recurse | ForEach-Object { $_.LastWrit
 if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Force }
 Push-Location $stage
 try {
-    & $SevenZipPath a -t7z -mx=9 -mmt=off -pmalte $output playbook.conf Configuration Executables
+    & $SevenZipPath a -t7z -mx=9 -mmt=off -pmalte $output playbook.conf Configuration Executables Assets
     if ($LASTEXITCODE -ne 0) { throw "7-Zip failed with exit code $LASTEXITCODE." }
 } finally {
     Pop-Location

@@ -43,12 +43,14 @@ internal sealed class FirstRunForm : Form
                 .Where(path => new[] { ".jpg", ".jpeg", ".png", ".bmp", ".webp" }
                     .Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
                 .Select(Path.GetFileName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Where(name => !string.IsNullOrWhiteSpace(name) && !name.StartsWith("Apex-LockScreen", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .Cast<string>()
                 .ToArray()
             : [];
         _wallpaper = Choice(new[] { "None" }.Concat(availableWallpapers).ToArray());
+        var defaultWallpaper = Array.FindIndex(availableWallpapers, name => string.Equals(name, "Apex-Default-Dark.jpg", StringComparison.OrdinalIgnoreCase));
+        if (defaultWallpaper >= 0) _wallpaper.SelectedIndex = defaultWallpaper + 1;
 
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(26, 22, 26, 18), RowCount = 4, ColumnCount = 1 };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));

@@ -26,9 +26,8 @@ try {
 
     if($Mode -eq 'Problems'){
         $devices=@(Get-CimInstance Win32_PnPEntity|Where-Object { $_.ConfigManagerErrorCode -ne 0 }|Select-Object Name,PNPDeviceID,PNPClass,ConfigManagerErrorCode,Status)
-        if(-not $devices.Count){'No device-reported driver errors found.'}else{$devices|Format-Table -AutoSize|Out-String|Write-Output}
         $missing=@($devices|Where-Object ConfigManagerErrorCode -eq 28)
-        "Problem devices: $($devices.Count); missing-driver indicators: $($missing.Count)"
+        [pscustomobject]@{Problems=$devices;ProblemCount=$devices.Count;MissingDriverCount=$missing.Count}|ConvertTo-Json -Depth 6
         Write-DriverLog 'Driver Problem Scan' "Problems=$($devices.Count); Missing=$($missing.Count)"
         exit 0
     }
@@ -40,7 +39,7 @@ try {
             $driver=$allDrivers|Where-Object DeviceID -eq $device.InstanceId|Select-Object -First 1
             [pscustomobject]@{Status=$device.Status;Device=$device.FriendlyName;Provider=$driver.DriverProviderName;Version=$driver.DriverVersion;Date=$driver.DriverDate;InstanceId=$device.InstanceId}
         }
-        if(-not @($rows).Count){"No $Mode devices were returned by Windows PnP."}else{$rows|Format-Table -Wrap -AutoSize|Out-String|Write-Output}
+        ConvertTo-Json -InputObject @($rows) -Depth 6
         Write-DriverLog "$Mode Driver Diagnostics" "Devices=$(@($rows).Count)"
         exit 0
     }
@@ -55,7 +54,23 @@ try {
         exit 0
     }
 
-    $allDrivers|Select-Object DeviceName,DriverProviderName,DriverVersion,DriverDate,IsSigned,InfName|Sort-Object DeviceName|Format-Table -Wrap -AutoSize|Out-String|Write-Output
+    $devices=@(Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue)
+    $inventory=foreach($driver in $allDrivers){
+        $device=$devices|Where-Object PNPDeviceID -eq $driver.DeviceID|Select-Object -First 1
+        [pscustomobject]@{
+            Name=if($driver.DeviceName){$driver.DeviceName}else{'Unknown device'}
+            Status=if($device){$device.Status}else{'Unknown'}
+            ErrorCode=if($device){[int]$device.ConfigManagerErrorCode}else{$null}
+            Provider=$driver.DriverProviderName
+            Version=$driver.DriverVersion
+            Date=$driver.DriverDate
+            Class=if($device){$device.PNPClass}else{'Unknown'}
+            InstanceId=$driver.DeviceID
+            InfName=$driver.InfName
+            IsSigned=$driver.IsSigned
+        }
+    }
+    ConvertTo-Json -InputObject @($inventory|Sort-Object Name) -Depth 5
     Write-DriverLog 'Driver Inventory' "Installed signed-driver entries=$($allDrivers.Count)"
 } catch {
     $log=Write-ApexLog -Action 'Driver Center' -Result 'Failed' -Message $_.Exception.Message

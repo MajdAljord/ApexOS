@@ -1,4 +1,4 @@
-param([ValidateSet('Status','StartupList','OpenStartup','OpenSearchIndex','OpenIndexOptions','OpenBackgroundApps','OpenGraphics')][string]$Mode='Status')
+param([ValidateSet('Status','StartupList','OpenStartup','OpenSearchIndex','OpenIndexOptions','OpenBackgroundApps','OpenGraphics','OpenStorage','OpenWindowsUpdate')][string]$Mode='Status')
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
 try {
@@ -15,6 +15,8 @@ try {
         'OpenIndexOptions' {Start-Process -FilePath 'control.exe' -ArgumentList @('/name','Microsoft.IndexingOptions');$log=Write-ApexLog -Action 'Open Indexing Options' -Result 'Success';'Opened Windows Indexing Options. No service settings were changed.';exit 0}
         'OpenBackgroundApps' {$uri='ms-settings:appsfeatures';$message='Opened Windows Installed apps settings. Review app-specific background permissions there.'}
         'OpenGraphics' {$uri='ms-settings:display-advancedgraphics';$message='Opened Windows Graphics settings. Choose a per-app GPU preference in Windows.'}
+        'OpenStorage' {$uri='ms-settings:storagesense';$message='Opened Windows Storage settings. Review proposed cleanup categories before deleting anything.'}
+        'OpenWindowsUpdate' {$uri='ms-settings:windowsupdate';$message='Opened Windows Update settings. Apex did not change update policy.'}
     }
     if($uri){Start-Process $uri;$log=Write-ApexLog -Action "Open $Mode" -Result 'Success' -Message $uri;"$message`nLog: $log"}
 }catch{$log=Write-ApexLog -Action "Windows User Settings $Mode" -Result 'Failed' -Message $_.Exception.Message;[Console]::Error.WriteLine("$($_.Exception.Message) Log: $log");exit 1}

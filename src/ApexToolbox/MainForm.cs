@@ -8,64 +8,157 @@ namespace ApexToolbox;
 
 internal sealed class MainForm : Form
 {
-    private static readonly string[] Categories = ["Performance", "Gaming", "RAM Saver", "Power", "Drivers", "Network", "Windows", "Explorer", "Security", "Repair", "Diagnostics", "Privacy", "Personalization", "Advanced", "Backup & Restore"];
+    private static readonly (string Label, string Category, string Glyph)[] Sections =
+    [
+        ("Home", "HOME", "\uE80F"),
+        ("General Configuration", "Performance", "\uE713"),
+        ("Windows Settings", "Windows", "\uE774"),
+        ("Security", "Security", "\uE72E"),
+        ("Troubleshooting", "Repair", "\uE90F"),
+        ("Performance", "Performance", "\uE945"),
+        ("Gaming", "Gaming", "\uE7FC"),
+        ("RAM Saver", "RAM Saver", "\uE950"),
+        ("Power", "Power", "\uE7E8"),
+        ("Drivers", "Drivers", "\uE839"),
+        ("Network", "Network", "\uE774"),
+        ("Interface Tweaks", "Personalization", "\uE790"),
+        ("Explorer", "Explorer", "\uE8B7"),
+        ("Privacy", "Privacy", "\uE72E"),
+        ("Software", "Software", "\uE71D"),
+        ("Storage", "Storage", "\uE7C3"),
+        ("Startup", "Startup", "\uE777"),
+        ("Diagnostics", "Diagnostics", "\uE9D9"),
+        ("Advanced Configuration", "Advanced", "\uE713"),
+        ("Backup & Restore", "Backup & Restore", "\uE8F1"),
+        ("About", "About", "\uE946")
+    ];
     private readonly string _root = AppContext.BaseDirectory;
     private readonly FlowLayoutPanel _actions = new();
     private readonly Label _heading = new();
     private readonly Label _footer = new();
+    private readonly Panel _sidebar = new();
+    private readonly PictureBox _brandIcon = new();
+    private readonly TextBox _searchBox = new();
+    private readonly ContextMenuStrip _searchResults = new();
+    private readonly Dictionary<string, Panel> _navigationButtons = new(StringComparer.OrdinalIgnoreCase);
     private ToolboxConfiguration _config = new();
-    private string _category = "Performance";
+    private string _category = "HOME";
     private readonly bool _isWindows = OperatingSystem.IsWindows();
     private readonly WindowsDetails _windows = ReadWindowsDetails();
+    private bool _lightTheme;
+    private JsonElement? _homeSnapshot;
+
+    private Color PageColor => _lightTheme ? Color.FromArgb(242, 245, 247) : Color.FromArgb(18, 22, 27);
+    private Color SurfaceColor => _lightTheme ? Color.White : Color.FromArgb(27, 33, 40);
+    private Color SidebarColor => _lightTheme ? Color.FromArgb(232, 237, 240) : Color.FromArgb(23, 28, 34);
+    private Color TextColor => _lightTheme ? Color.FromArgb(31, 39, 45) : Color.FromArgb(235, 239, 242);
+    private Color MutedColor => _lightTheme ? Color.FromArgb(92, 105, 114) : Color.FromArgb(155, 168, 177);
+    private Color AccentColor => Color.FromArgb(76, 190, 155);
 
     public MainForm()
     {
         Text = "Apex Toolbox";
-        Size = new Size(1100, 740);
-        MinimumSize = new Size(850, 560);
+        Size = new Size(1240, 820);
+        MinimumSize = new Size(960, 640);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.FromArgb(19, 23, 28);
-        ForeColor = Color.FromArgb(235, 239, 242);
-        Font = new Font("Segoe UI", 9.5F);
+        BackColor = PageColor;
+        ForeColor = TextColor;
+        Font = new Font("Segoe UI Variable Text", 9.5F);
+        var iconPath = Path.Combine(_root, "Assets", "ApexToolboxApplication.ico");
+        if (File.Exists(iconPath)) Icon = new Icon(iconPath);
+        _lightTheme = ReadThemePreference();
+        BackColor = PageColor;
+        ForeColor = TextColor;
         var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 215));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 236));
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Controls.Add(shell);
-        var sidebar = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(25, 30, 36), Padding = new Padding(14) };
+        _sidebar.Dock = DockStyle.Fill;
+        _sidebar.BackColor = SidebarColor;
+        _sidebar.Padding = new Padding(14, 18, 12, 12);
+        var sidebar = _sidebar;
         shell.Controls.Add(sidebar, 0, 0);
-        sidebar.Controls.Add(new Label { Text = "APEX\nTOOLBOX", Dock = DockStyle.Top, Height = 78, Font = new Font("Segoe UI Semibold", 16), ForeColor = Color.FromArgb(116, 219, 186) });
-        var setupButton = new Button { Text = "Welcome setup", Dock = DockStyle.Top, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(49, 59, 66), ForeColor = Color.White };
-        setupButton.FlatAppearance.BorderSize = 0;
+        var brand = new Panel { Dock = DockStyle.Top, Height = 70, BackColor = SidebarColor, Padding = new Padding(0, 0, 0, 10) };
+        _brandIcon.Dock = DockStyle.Left;
+        _brandIcon.Size = new Size(46, 46);
+        _brandIcon.SizeMode = PictureBoxSizeMode.Zoom;
+        brand.Controls.Add(_brandIcon);
+        brand.Controls.Add(new Label { Text = "APEX\nTOOLBOX", Dock = DockStyle.Left, Width = 124, Font = new Font("Segoe UI Semibold", 12F), ForeColor = AccentColor, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 0, 0, 0) });
+        sidebar.Controls.Add(brand);
+        var setupButton = new Button { Text = "Welcome setup", Dock = DockStyle.Top, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = SurfaceColor, ForeColor = TextColor };
+        setupButton.FlatAppearance.BorderColor = _lightTheme ? Color.FromArgb(220, 226, 230) : Color.FromArgb(48, 57, 65);
+        setupButton.FlatAppearance.BorderSize = 1;
         setupButton.Enabled = _windows.IsWindows11;
         setupButton.Click += async (_, _) => await ShowFirstRunSetupAsync();
         sidebar.Controls.Add(setupButton);
-        var nav = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(0, 8, 0, 0) };
+        var nav = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, Padding = new Padding(0, 10, 2, 0), BackColor = SidebarColor };
         sidebar.Controls.Add(nav);
-        foreach (var category in Categories)
+        foreach (var section in Sections)
         {
-            var button = new Button { Text = category, Width = 180, Height = 34, TextAlign = ContentAlignment.MiddleLeft, FlatStyle = FlatStyle.Flat, BackColor = sidebar.BackColor, ForeColor = ForeColor, Padding = new Padding(8, 0, 0, 0), Tag = category, Margin = new Padding(0, 2, 0, 2) };
-            button.FlatAppearance.BorderSize = 0;
-            button.Click += (_, _) => _ = ShowCategoryAsync(category);
-            nav.Controls.Add(button);
+            var item = new Panel { Width = 196, Height = 34, BackColor = SidebarColor, Tag = section.Category, Margin = new Padding(0, 1, 0, 1), Cursor = Cursors.Hand };
+            var glyph = new Label { Text = section.Glyph, Dock = DockStyle.Left, Width = 31, TextAlign = ContentAlignment.MiddleCenter, ForeColor = MutedColor, Font = new Font("Segoe MDL2 Assets", 12F), BackColor = Color.Transparent };
+            var label = new Label { Text = section.Label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = MutedColor, Font = new Font("Segoe UI", 9F), BackColor = Color.Transparent, AutoEllipsis = true };
+            async void Navigate(object? _, EventArgs __) => await NavigateAsync(section.Category);
+            item.Click += Navigate;
+            glyph.Click += Navigate;
+            label.Click += Navigate;
+            item.Controls.Add(label);
+            item.Controls.Add(glyph);
+            nav.Controls.Add(item);
+            _navigationButtons[section.Category] = item;
         }
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, Padding = new Padding(26, 22, 26, 12) };
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         shell.Controls.Add(body, 1, 0);
-        _heading.Dock = DockStyle.Fill;
-        _heading.Font = new Font("Segoe UI Semibold", 20);
-        body.Controls.Add(_heading, 0, 0);
+        var toolbar = new Panel { Dock = DockStyle.Fill, BackColor = PageColor };
+        _heading.Dock = DockStyle.Left;
+        _heading.Width = 390;
+        _heading.Font = new Font("Segoe UI Variable Display", 21F, FontStyle.Bold);
+        _heading.ForeColor = TextColor;
+        _heading.TextAlign = ContentAlignment.MiddleLeft;
+        toolbar.Controls.Add(_heading);
+        var themeButton = new Button { Name = "theme-button", Text = _lightTheme ? "\uE708  Light" : "\uE708  Dark", Dock = DockStyle.Right, Width = 96, FlatStyle = FlatStyle.Flat, BackColor = SurfaceColor, ForeColor = TextColor, Font = new Font("Segoe MDL2 Assets", 9F), UseCompatibleTextRendering = true };
+        themeButton.FlatAppearance.BorderSize = 0;
+        themeButton.Click += (_, _) => SetTheme(!_lightTheme);
+        toolbar.Controls.Add(themeButton);
+        _searchBox.Dock = DockStyle.Right;
+        _searchBox.Width = 260;
+        _searchBox.Font = new Font("Segoe UI", 10F);
+        _searchBox.BorderStyle = BorderStyle.FixedSingle;
+        _searchBox.Margin = new Padding(0, 8, 10, 8);
+        _searchBox.TextChanged += (_, _) => UpdateSearchResults();
+        _searchBox.KeyDown += SearchBoxKeyDown;
+        toolbar.Controls.Add(_searchBox);
+        body.Controls.Add(toolbar, 0, 0);
         _actions.Dock = DockStyle.Fill;
         _actions.FlowDirection = FlowDirection.TopDown;
         _actions.WrapContents = false;
         _actions.AutoScroll = true;
+        _actions.BackColor = PageColor;
         body.Controls.Add(_actions, 0, 1);
         _footer.Dock = DockStyle.Fill;
         _footer.TextAlign = ContentAlignment.MiddleLeft;
-        _footer.ForeColor = Color.FromArgb(150, 163, 171);
+        _footer.ForeColor = MutedColor;
         body.Controls.Add(_footer, 0, 2);
+        _searchResults.ItemClicked += async (_, eventArgs) =>
+        {
+            if (eventArgs.ClickedItem?.Tag is ToolboxAction action)
+            {
+                _searchResults.Hide();
+                _searchBox.Clear();
+                await NavigateAsync(action.Category);
+            }
+            else if (eventArgs.ClickedItem?.Tag is ValueTuple<string, string, string> section)
+            {
+                _searchResults.Hide();
+                _searchBox.Clear();
+                await NavigateAsync(section.Item2);
+            }
+        };
         LoadConfig();
+        UpdateBrandIcon();
         UpdateFooter();
         Shown += async (_, _) =>
         {
@@ -81,7 +174,103 @@ internal sealed class MainForm : Form
             if (choice != DialogResult.Yes) { Close(); return; }
             if (_windows.IsWindows11 && !HasCompletedFirstRun()) await ShowFirstRunSetupAsync();
             await ShowCategoryAsync(_category);
+            if (!_windows.IsWindows11) ApplyUnsupportedReadOnlyGate();
         };
+    }
+
+    private static bool ReadThemePreference()
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ApexOS", "toolbox-theme.json");
+        try { return File.Exists(path) && File.ReadAllText(path).Trim().Equals("light", StringComparison.OrdinalIgnoreCase); }
+        catch { return false; }
+    }
+
+    private void SetTheme(bool light)
+    {
+        _lightTheme = light;
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ApexOS", "toolbox-theme.json");
+        try { Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, light ? "light" : "dark"); }
+        catch { }
+        ApplyTheme(this);
+        UpdateBrandIcon();
+        UpdateFooter();
+        foreach (var pair in _navigationButtons)
+        {
+            var selected = pair.Key.Equals(_category, StringComparison.OrdinalIgnoreCase);
+            pair.Value.BackColor = selected ? AccentColor : SidebarColor;
+            foreach (Control child in pair.Value.Controls) child.ForeColor = selected ? Color.FromArgb(17, 34, 29) : MutedColor;
+        }
+        var themeButton = Controls.Find("theme-button", true).FirstOrDefault() as Button;
+        if (themeButton is not null) themeButton.Text = _lightTheme ? "\uE708  Light" : "\uE708  Dark";
+    }
+
+    private void ApplyTheme(Control parent)
+    {
+        parent.BackColor = parent == this ? PageColor : parent == _sidebar ? SidebarColor :
+            parent == _actions ? PageColor : parent is Panel && parent.Tag?.ToString() == "card" ? SurfaceColor :
+            parent is Panel ? (parent.Parent == _sidebar ? SidebarColor : PageColor) : parent.BackColor;
+        if (parent is Label label) label.ForeColor = label.Name == "muted" ? MutedColor : TextColor;
+        if (parent is Button button && button.Name != "theme-button")
+        {
+            button.ForeColor = TextColor;
+            button.BackColor = SurfaceColor;
+        }
+        if (parent is TextBox textBox) { textBox.BackColor = SurfaceColor; textBox.ForeColor = TextColor; }
+        foreach (Control child in parent.Controls) ApplyTheme(child);
+    }
+
+    private void UpdateBrandIcon()
+    {
+        var path = Path.Combine(_root, "Assets", _lightTheme ? "ApexMenuIcon.Light.png" : "ApexMenuIcon.Dark.png");
+        if (!File.Exists(path)) return;
+        var old = _brandIcon.Image;
+        _brandIcon.Image = Image.FromFile(path);
+        old?.Dispose();
+    }
+
+    private void ApplyUnsupportedReadOnlyGate()
+    {
+        var setupButton = _sidebar.Controls.OfType<Button>().FirstOrDefault(button => button.Text == "Welcome setup");
+        if (setupButton is not null) setupButton.Enabled = false;
+    }
+
+    private async Task NavigateAsync(string category)
+    {
+        await ShowCategoryAsync(category);
+        foreach (var pair in _navigationButtons)
+        {
+            var selected = pair.Key.Equals(category, StringComparison.OrdinalIgnoreCase);
+            pair.Value.BackColor = selected ? AccentColor : SidebarColor;
+            foreach (Control child in pair.Value.Controls) child.ForeColor = selected ? Color.FromArgb(17, 34, 29) : MutedColor;
+        }
+    }
+
+    private void UpdateSearchResults()
+    {
+        var query = _searchBox.Text.Trim();
+        _searchResults.Items.Clear();
+        if (query.Length < 2) { _searchResults.Hide(); return; }
+        foreach (var action in _config.Actions
+                     .Where(item => item.Title.Contains(query, StringComparison.OrdinalIgnoreCase) || item.Description.Contains(query, StringComparison.OrdinalIgnoreCase) || item.Category.Contains(query, StringComparison.OrdinalIgnoreCase))
+                     .Take(12))
+        {
+            var item = new ToolStripMenuItem($"{action.Title}    ·    {action.Category}") { Tag = action, ToolTipText = action.Description };
+            _searchResults.Items.Add(item);
+        }
+        foreach (var section in Sections.Where(item => item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(5))
+            _searchResults.Items.Add(new ToolStripMenuItem($"{section.Glyph}   {section.Label}    ·    Section") { Tag = section });
+        if (_searchResults.Items.Count == 0) _searchResults.Items.Add(new ToolStripMenuItem("No matching Apex settings") { Enabled = false });
+        _searchResults.Show(_searchBox, new Point(0, _searchBox.Height));
+    }
+
+    private void SearchBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Escape) { _searchBox.Clear(); _searchResults.Hide(); }
+        if (e.KeyCode == Keys.Enter && _searchResults.Items.Count > 0 && _searchResults.Items[0].Enabled)
+        {
+            _searchResults.Items[0].PerformClick();
+            e.Handled = true;
+        }
     }
 
     private string FirstRunMarkerPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ApexOS", "setup-completed.json");
@@ -188,11 +377,22 @@ internal sealed class MainForm : Form
     private async Task ShowCategoryAsync(string category)
     {
         _category = category;
-        _heading.Text = category;
+        var section = Sections.FirstOrDefault(item => item.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+        _heading.Text = section.Label ?? category;
         _actions.Controls.Clear();
         if (!_isWindows)
         {
             _actions.Controls.Add(new Label { Text = "Windows-only functionality unavailable on this operating system.", AutoSize = true, ForeColor = Color.FromArgb(240, 179, 120), Margin = new Padding(0, 12, 0, 0) });
+            return;
+        }
+        if (category.Equals("HOME", StringComparison.OrdinalIgnoreCase))
+        {
+            await RenderHomeAsync();
+            return;
+        }
+        if (category.Equals("About", StringComparison.OrdinalIgnoreCase))
+        {
+            RenderAbout();
             return;
         }
         var actions = _config.Actions.Where(action => action.Category == category).ToList();
@@ -224,6 +424,155 @@ internal sealed class MainForm : Form
         }
     }
 
+    private async Task RenderHomeAsync()
+    {
+        _actions.Controls.Clear();
+        var intro = new Panel { Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 106, BackColor = PageColor, Margin = new Padding(0, 0, 0, 12) };
+        intro.Controls.Add(new Label { Text = "Apex OS", Dock = DockStyle.Top, Height = 42, Font = new Font("Segoe UI Variable Display", 25F, FontStyle.Bold), ForeColor = TextColor });
+        intro.Controls.Add(new Label { Text = "Apex Playbook v0.3.0", Dock = DockStyle.Top, Height = 26, Font = new Font("Segoe UI", 11F), ForeColor = MutedColor });
+        var refresh = ButtonFor("Refresh snapshot", true);
+        refresh.Width = 142;
+        refresh.Dock = DockStyle.Right;
+        refresh.Click += async (_, _) => await RenderHomeAsync();
+        intro.Controls.Add(refresh);
+        _actions.Controls.Add(intro);
+
+        var action = _config.Actions.FirstOrDefault(item => item.Id == "home-snapshot");
+        if (action is null)
+        {
+            _actions.Controls.Add(CreateNotice("Home snapshot is not configured.", true));
+            return;
+        }
+        _actions.Controls.Add(CreateNotice("Reading current system state...", false));
+        var outcome = await ScriptRunner.RunAsync(ResolveScript(action.Script), action.ApplyArgs, false);
+        _actions.Controls.RemoveAt(_actions.Controls.Count - 1);
+        var logPath = WriteLog($"Home snapshot | {action.Script}", outcome.ExitCode, $"STDOUT:\n{outcome.StandardOutput}\nSTDERR:\n{outcome.StandardError}");
+        if (outcome.ExitCode != 0)
+        {
+            _actions.Controls.Add(CreateNotice($"Apex could not read the system snapshot. See log: {logPath}", true));
+            return;
+        }
+        try
+        {
+            using var document = JsonDocument.Parse(outcome.StandardOutput);
+            _homeSnapshot = document.RootElement.Clone();
+            RenderSnapshotCards(document.RootElement);
+        }
+        catch (JsonException exception)
+        {
+            var parseLog = WriteLog("Home snapshot JSON", 1, exception.ToString());
+            _actions.Controls.Add(CreateNotice($"System snapshot was incomplete or invalid. See log: {parseLog}", true));
+        }
+    }
+
+    private void RenderSnapshotCards(JsonElement snapshot)
+    {
+        var system = snapshot.GetProperty("Windows");
+        var memory = snapshot.GetProperty("Memory");
+        var storage = snapshot.GetProperty("Storage");
+        var cpu = snapshot.GetProperty("Cpu");
+        var gpu = snapshot.GetProperty("Gpu");
+        var power = snapshot.GetProperty("Power");
+        var status = snapshot.GetProperty("Status");
+        var deviceType = snapshot.GetProperty("DeviceType").GetString() ?? "Unknown device";
+        var systemSummary = new Label
+        {
+            Text = $"{deviceType}    ·    {system.GetProperty("Product").GetString()} {system.GetProperty("DisplayVersion").GetString()}  (build {system.GetProperty("Build").GetInt32()}, {system.GetProperty("Architecture").GetString()})\n{cpu.GetProperty("Name").GetString()}    ·    {gpu.GetProperty("Name").GetString()}    ·    {FormatBytes(memory.GetProperty("TotalBytes").GetInt64())} RAM",
+            Width = Math.Max(620, _actions.ClientSize.Width - 36),
+            Height = 58,
+            ForeColor = MutedColor,
+            Margin = new Padding(0, 0, 0, 10)
+        };
+        _actions.Controls.Add(systemSummary);
+
+        var metrics = new FlowLayoutPanel { Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 112, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, BackColor = PageColor, Margin = new Padding(0, 0, 0, 12) };
+        AddMetric(metrics, "CPU", cpu.GetProperty("UsagePercent").ValueKind == JsonValueKind.Null ? "Unavailable" : $"{cpu.GetProperty("UsagePercent").GetInt32()}%", cpu.GetProperty("Name").GetString() ?? "Processor");
+        AddMetric(metrics, "Memory", $"{memory.GetProperty("UsagePercent").GetDouble():0}% used", $"{FormatBytes(memory.GetProperty("AvailableBytes").GetInt64())} available · {memory.GetProperty("Pressure").GetString()} pressure");
+        var gpuUsage = gpu.GetProperty("UsagePercent");
+        AddMetric(metrics, "Graphics", gpuUsage.ValueKind == JsonValueKind.Null ? "Usage unavailable" : $"{gpuUsage.GetDouble():0}%", gpu.GetProperty("Name").GetString() ?? "Not detected");
+        AddMetric(metrics, "Storage", $"{FormatBytes(storage.GetProperty("FreeBytes").GetInt64())} free", $"{storage.GetProperty("Drive").GetString()} · {FormatBytes(storage.GetProperty("TotalBytes").GetInt64())} total");
+        _actions.Controls.Add(metrics);
+
+        var planName = power.GetProperty("ActivePlan").GetString() ?? "Unknown";
+        var startupCount = snapshot.GetProperty("StartupCount").GetInt32();
+        var statusGrid = new FlowLayoutPanel { Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 142, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, BackColor = PageColor, Margin = new Padding(0, 0, 0, 12) };
+        AddStatus(statusGrid, "Optimization profile", "Individual settings", true);
+        AddStatus(statusGrid, "Active power plan", planName, true);
+        AddStatus(statusGrid, "RAM Saver", status.GetProperty("RamSaver").GetString() ?? "Unknown", true);
+        AddStatus(statusGrid, "Gaming Mode", status.GetProperty("GameMode").GetBoolean() ? "On" : "Off", true);
+        AddStatus(statusGrid, "Windows Update", status.GetProperty("WindowsUpdate").GetString() ?? "Unknown", true);
+        AddStatus(statusGrid, "Windows Security", status.GetProperty("WindowsSecurity").GetString() ?? "Unknown", !string.Equals(status.GetProperty("WindowsSecurity").GetString(), "Real-time protection off", StringComparison.OrdinalIgnoreCase));
+        var networkState = status.GetProperty("Network").GetString() ?? "Unknown";
+        AddStatus(statusGrid, "Network", networkState, networkState.StartsWith("Internet reachable", StringComparison.OrdinalIgnoreCase));
+        AddStatus(statusGrid, "Startup apps", startupCount.ToString(), true);
+        AddStatus(statusGrid, "Restart Required", status.GetProperty("RestartRequired").GetBoolean() ? "Yes" : "No", !status.GetProperty("RestartRequired").GetBoolean());
+        AddStatus(statusGrid, "Device errors", status.GetProperty("DeviceErrors").GetInt32().ToString(), status.GetProperty("DeviceErrors").GetInt32() == 0);
+        _actions.Controls.Add(statusGrid);
+
+        var quickTitle = new Label { Text = "Quick actions", Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 30, ForeColor = TextColor, Font = new Font("Segoe UI Semibold", 13F) };
+        _actions.Controls.Add(quickTitle);
+        var quick = new FlowLayoutPanel { Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 46, WrapContents = true, BackColor = PageColor };
+        AddQuickAction(quick, "Performance", "power-performance");
+        AddQuickAction(quick, "Gaming Mode", "gaming-mode");
+        AddQuickAction(quick, "RAM Saver", "ram-saver-balanced");
+        AddQuickAction(quick, "Network Repair", "network-repair");
+        AddQuickAction(quick, "Windows Update", "windows-update-settings");
+        AddQuickAction(quick, "Storage Cleanup", "storage-settings");
+        _actions.Controls.Add(quick);
+    }
+
+    private void AddMetric(FlowLayoutPanel row, string title, string value, string detail)
+    {
+        var panel = new Panel { Width = Math.Max(150, (row.ClientSize.Width - 30) / 4), Height = 98, BackColor = SurfaceColor, Margin = new Padding(0, 0, 10, 0), Padding = new Padding(13), Tag = "card" };
+        panel.Controls.Add(new Label { Text = detail, Dock = DockStyle.Bottom, Height = 33, ForeColor = MutedColor, Font = new Font("Segoe UI", 8.5F) });
+        panel.Controls.Add(new Label { Text = value, Dock = DockStyle.Top, Height = 30, ForeColor = TextColor, Font = new Font("Segoe UI Semibold", 14F) });
+        panel.Controls.Add(new Label { Text = title.ToUpperInvariant(), Dock = DockStyle.Top, Height = 19, ForeColor = AccentColor, Font = new Font("Segoe UI Semibold", 8F) });
+        row.Controls.Add(panel);
+    }
+
+    private void AddStatus(FlowLayoutPanel row, string title, string value, bool healthy)
+    {
+        var panel = new Panel { Width = Math.Max(180, (row.ClientSize.Width - 18) / 3), Height = 56, BackColor = SurfaceColor, Margin = new Padding(0, 0, 8, 7), Padding = new Padding(10, 7, 8, 5), Tag = "card" };
+        panel.Controls.Add(new Label { Text = value, Dock = DockStyle.Right, Width = 104, ForeColor = healthy ? AccentColor : Color.FromArgb(226, 124, 104), TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true });
+        panel.Controls.Add(new Label { Text = title, Dock = DockStyle.Fill, ForeColor = MutedColor, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true });
+        row.Controls.Add(panel);
+    }
+
+    private void AddQuickAction(FlowLayoutPanel row, string label, string actionId)
+    {
+        var button = ButtonFor(label, false);
+        button.Width = label.Length > 13 ? 136 : 118;
+        var action = _config.Actions.FirstOrDefault(item => item.Id == actionId);
+        button.Enabled = action is not null && (_windows.IsWindows11 || action.ReadOnly);
+        button.Click += async (_, _) =>
+        {
+            if (action is not null) await RunActionAsync(action, action.ApplyArgs, _actions);
+        };
+        row.Controls.Add(button);
+    }
+
+    private Control CreateNotice(string message, bool error)
+    {
+        return new Label { Text = message, Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 58, BackColor = SurfaceColor, ForeColor = error ? Color.FromArgb(226, 124, 104) : MutedColor, Padding = new Padding(16), Margin = new Padding(0, 10, 0, 12), Tag = "card" };
+    }
+
+    private void RenderAbout()
+    {
+        var panel = new Panel { Width = Math.Max(620, _actions.ClientSize.Width - 36), Height = 180, BackColor = SurfaceColor, Padding = new Padding(22), Tag = "card" };
+        panel.Controls.Add(new Label { Text = "Apex OS", Dock = DockStyle.Top, Height = 44, Font = new Font("Segoe UI Variable Display", 24F, FontStyle.Bold), ForeColor = TextColor });
+        panel.Controls.Add(new Label { Text = $"Apex Playbook v0.3.0\n{_windows.Product} · build {_windows.Build} · {RuntimeInformation.OSArchitecture}\nAME Wizard deployment · Apex Toolbox and reversible Windows configuration tools", Dock = DockStyle.Fill, ForeColor = MutedColor });
+        _actions.Controls.Add(panel);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return $"{value:0.#} {units[unit]}";
+    }
+
     private Control CreateWallpaperBrowser(ToolboxAction action)
         {
             var card = new Panel { Width = Math.Max(480, _actions.ClientSize.Width - 34), Height = 248, BackColor = Color.FromArgb(29, 35, 41), Margin = new Padding(0, 0, 0, 12), Padding = new Padding(16) };
@@ -252,7 +601,7 @@ internal sealed class MainForm : Form
             var setDefault = ButtonFor("Apex default", false);
             setDefault.Width = 110;
             setDefault.Enabled = _windows.IsWindows11;
-            setDefault.Click += async (_, _) => await RunWallpaperAsync(action, card, "Set", "Apex-Dark.jpg");
+            setDefault.Click += async (_, _) => await RunWallpaperAsync(action, card, "Set", "Apex-Default-Dark.jpg");
             buttons.Controls.Add(setDefault);
 
             var lockScreen = ButtonFor("Lock screen...", false);
@@ -293,7 +642,7 @@ internal sealed class MainForm : Form
                 choice.Items.Clear();
                 choice.Items.AddRange(wallpapers);
                 var index = Array.FindIndex(wallpapers, name => string.Equals(name, selected, StringComparison.OrdinalIgnoreCase));
-                if (index < 0) index = Array.FindIndex(wallpapers, name => string.Equals(name, "Apex-Dark.jpg", StringComparison.OrdinalIgnoreCase));
+                if (index < 0) index = Array.FindIndex(wallpapers, name => string.Equals(name, "Apex-Default-Dark.jpg", StringComparison.OrdinalIgnoreCase));
                 choice.SelectedIndex = index >= 0 ? index : wallpapers.Length > 0 ? 0 : -1;
                 choice.EndUpdate();
                 if (wallpapers.Length == 0) status.Text = "No supported image files found in the Wallpapers folder.";
@@ -384,8 +733,30 @@ internal sealed class MainForm : Form
         {
             var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), action.StatusArgs, false);
             var state = result.StandardOutput.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim() ?? "Unknown";
+            if (result.ExitCode == 0 && action.Category == "Power")
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(result.StandardOutput);
+                    var root = json.RootElement;
+                    if (root.TryGetProperty("Profile", out var profile))
+                    {
+                        var available = root.GetProperty("Available").GetBoolean();
+                        var active = root.GetProperty("Active").GetBoolean();
+                        state = available ? $"{(active ? "Active" : "Available")}: {profile.GetString()}" : $"Power plan unavailable: {profile.GetString()}";
+                    }
+                    else if (root.TryGetProperty("CurrentPlan", out var current))
+                    {
+                        var currentName = current.GetString() ?? "Unknown";
+                        state = $"Active: {currentName}";
+                    }
+                }
+                catch (JsonException) { }
+            }
             label.Text = result.ExitCode == 0 ? $"Status: {state}" : $"Status: unavailable (exit {result.ExitCode})";
-            label.ForeColor = result.ExitCode == 0 ? Color.FromArgb(116, 219, 186) : Color.FromArgb(240, 147, 126);
+            label.ForeColor = result.ExitCode != 0 || state.StartsWith("Power plan unavailable", StringComparison.OrdinalIgnoreCase)
+                ? Color.FromArgb(240, 147, 126)
+                : Color.FromArgb(116, 219, 186);
         }
         catch { label.Text = "Status: unavailable"; label.ForeColor = Color.FromArgb(240, 147, 126); }
     }
@@ -430,10 +801,27 @@ internal sealed class MainForm : Form
             var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), arguments, action.RequiresAdmin);
             var detail = $"STDOUT:\n{result.StandardOutput}\nSTDERR:\n{result.StandardError}";
             var logPath = WriteLog($"{action.Title} | {action.Script}", result.ExitCode, detail);
+            if (result.ExitCode == 0 && action.Category == "Drivers")
+            {
+                RenderDriverResults(action, result.StandardOutput, logPath);
+                return;
+            }
             var text = result.ExitCode == 0
                 ? $"Completed successfully.\n\n{result.StandardOutput.Trim()}"
                 : $"Failed (exit code {result.ExitCode}).\n{result.StandardError.Trim()}\n{result.StandardOutput.Trim()}\n\nLog: {logPath}";
-            MessageBox.Show(this, text, "Apex Toolbox", MessageBoxButtons.OK, result.ExitCode == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+            if (result.ExitCode != 0 && action.Category == "Power" && arguments.Contains("Select"))
+            {
+                using var recovery = new PowerPlanRecoveryForm(action.Title, $"Exit code: {result.ExitCode}\nLog: {logPath}\n\n{result.StandardError.Trim()}\n{result.StandardOutput.Trim()}", _lightTheme);
+                recovery.ShowDialog(this);
+                if (recovery.Choice == PowerPlanRecoveryChoice.UseAvailable)
+                    await RunPowerFallbackAsync("power-use-available");
+                else if (recovery.Choice == PowerPlanRecoveryChoice.RestoreCompatible)
+                    await RunPowerFallbackAsync("power-use-available");
+            }
+            else
+            {
+                MessageBox.Show(this, text, "Apex Toolbox", MessageBoxButtons.OK, result.ExitCode == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+            }
             await ShowCategoryAsync(_category);
         }
         catch (Exception exception)
@@ -443,6 +831,109 @@ internal sealed class MainForm : Form
         }
         finally { card.Enabled = true; }
         SetActionProgress(card, false);
+    }
+
+    private async Task RunPowerFallbackAsync(string actionId)
+    {
+        var action = _config.Actions.FirstOrDefault(item => item.Id == actionId);
+        if (action is null)
+        {
+            MessageBox.Show(this, "The selected power recovery action is not configured.", "Apex Toolbox", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        try
+        {
+            var result = await ScriptRunner.RunAsync(ResolveScript(action.Script), action.ApplyArgs, action.RequiresAdmin);
+            var detail = $"STDOUT:\n{result.StandardOutput}\nSTDERR:\n{result.StandardError}";
+            var log = WriteLog($"{action.Title} | {action.Script}", result.ExitCode, detail);
+            var message = result.ExitCode == 0
+                ? result.StandardOutput.Trim()
+                : $"A compatible power plan could not be selected.\nExit code: {result.ExitCode}\n{result.StandardError.Trim()}\nLog: {log}";
+            MessageBox.Show(this, message, "Apex Toolbox", MessageBoxButtons.OK, result.ExitCode == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+        }
+        catch (Exception exception)
+        {
+            var log = WriteLog($"{action.Title} | {action.Script}", 1, exception.ToString());
+            MessageBox.Show(this, $"Power plan recovery failed. {exception.Message}\nLog: {log}", "Apex Toolbox", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RenderDriverResults(ToolboxAction action, string json, string logPath)
+    {
+        _actions.Controls.Clear();
+        _heading.Text = action.Title;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (action.Id == "driver-problems")
+            {
+                var problems = root.GetProperty("Problems");
+                if (problems.GetArrayLength() == 0)
+                    _actions.Controls.Add(CreateNotice("No devices are reporting a PnP driver error.", false));
+                else
+                    foreach (var problem in problems.EnumerateArray())
+                    {
+                        var friendlyName = GetJsonString(problem, "Name", "Device requiring attention");
+                        var code = problem.TryGetProperty("ConfigManagerErrorCode", out var errorCode) ? errorCode.ToString() : "Unknown";
+                        var instance = GetJsonString(problem, "PNPDeviceID", "Unavailable");
+                        _actions.Controls.Add(CreateDriverCard(friendlyName, $"Device status: {GetJsonString(problem, "Status", "Unknown")} · Configuration code: {code}", instance));
+                    }
+            }
+            else
+            {
+                var entries = root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().ToList() : [];
+                if (entries.Count == 0)
+                    _actions.Controls.Add(CreateNotice("Windows did not return driver entries for this view.", false));
+                foreach (var entry in entries)
+                {
+                    var name = GetJsonString(entry, "Name", GetJsonString(entry, "Device", "Unknown device"));
+                    var provider = GetJsonString(entry, "Provider", GetJsonString(entry, "DriverProviderName", "Provider unavailable"));
+                    var version = GetJsonString(entry, "Version", GetJsonString(entry, "DriverVersion", "Version unavailable"));
+                    var date = GetJsonString(entry, "Date", GetJsonString(entry, "DriverDate", "Date unavailable"));
+                    var status = GetJsonString(entry, "Status", "Unknown status");
+                    var code = entry.TryGetProperty("ErrorCode", out var error) && error.ValueKind != JsonValueKind.Null ? $" · Error {error}" : "";
+                    var instance = GetJsonString(entry, "InstanceId", GetJsonString(entry, "DeviceID", "Unavailable"));
+                    var inf = GetJsonString(entry, "InfName", "Unavailable");
+                    var signed = GetJsonString(entry, "IsSigned", "Unknown");
+                    var details = $"Device instance: {instance}\nINF: {inf}\nSigned: {signed}\nDriver date: {date}";
+                    _actions.Controls.Add(CreateDriverCard(name, $"{status}{code} · {provider} · {version}", details));
+                }
+            }
+            _actions.Controls.Add(new Label { Text = $"Detailed output is logged at {logPath}", AutoSize = true, ForeColor = MutedColor, Margin = new Padding(0, 8, 0, 12) });
+        }
+        catch (Exception exception)
+        {
+            var parseLog = WriteLog("Driver results parsing", 1, exception.ToString());
+            _actions.Controls.Add(CreateNotice($"Driver results could not be displayed. See log: {parseLog}", true));
+        }
+    }
+
+    private Panel CreateDriverCard(string name, string summary, string details)
+    {
+        var card = new Panel { Width = Math.Max(620, _actions.ClientSize.Width - 42), Height = 92, BackColor = SurfaceColor, Padding = new Padding(15, 10, 15, 8), Margin = new Padding(0, 0, 0, 8), Tag = "card" };
+        var heading = new Label { Text = name, Dock = DockStyle.Top, Height = 25, ForeColor = TextColor, Font = new Font("Segoe UI Semibold", 11F), AutoEllipsis = true };
+        var description = new Label { Text = summary, Dock = DockStyle.Top, Height = 23, ForeColor = MutedColor, AutoEllipsis = true };
+        var advanced = new TextBox { Text = details, Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, Visible = false, BorderStyle = BorderStyle.None, BackColor = SurfaceColor, ForeColor = MutedColor, Font = new Font("Consolas", 8.5F) };
+        var toggle = new LinkLabel { Text = "Advanced details", Dock = DockStyle.Bottom, Height = 18, LinkColor = AccentColor, ActiveLinkColor = AccentColor };
+        toggle.Click += (_, _) =>
+        {
+            advanced.Visible = !advanced.Visible;
+            card.Height = advanced.Visible ? 154 : 92;
+            toggle.Text = advanced.Visible ? "Hide advanced details" : "Advanced details";
+        };
+        card.Controls.Add(advanced);
+        card.Controls.Add(toggle);
+        card.Controls.Add(description);
+        card.Controls.Add(heading);
+        return card;
+    }
+
+    private static string GetJsonString(JsonElement element, string property, string fallback)
+    {
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return fallback;
+        return value.ValueKind == JsonValueKind.String ? value.GetString() ?? fallback : value.ToString();
     }
 
     private static void SetActionProgress(Control card, bool running)

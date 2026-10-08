@@ -67,7 +67,7 @@ def validate_source() -> None:
         errors.append("Playbook UniqueId must be a valid UUID.")
 
     wallpaper_source = ROOT / "Wallpapers"
-    for default in ("Apex-Dark.jpg", "Apex-LockScreen-Dark.jpg"):
+    for default in ("Apex-Default-Dark.jpg", "Apex-LockScreen-Dark.jpg"):
         if not (wallpaper_source / default).is_file():
             errors.append(f"Required Apex default wallpaper is missing: Wallpapers/{default}")
 
@@ -89,7 +89,7 @@ def validate_source() -> None:
         errors.append("AME install task does not invoke the Apex installer.")
 
     launcher_text = launcher.read_text(encoding="utf-8")
-    for expected in ("ApexDesktop", "Apex-Dark.jpg", "Wallpaper.ps1", "Apex-LockScreen-Dark.jpg"):
+    for expected in ("ApexDesktop", "Apex-Default-Dark.jpg", "Wallpaper.ps1", "Apex-LockScreen-Dark.jpg"):
         if expected not in launcher_text:
             errors.append(f"Apex installer does not account for {expected}.")
     if "Join-Path $env:WINDIR 'ApexDesktop'" not in launcher_text:
@@ -149,7 +149,7 @@ def validate_project_links(payload: pathlib.Path | None) -> None:
             for wallpaper in wallpaper_source.iterdir():
                 if wallpaper.is_file() and wallpaper.suffix.lower() in supported and not (wallpaper_payload / wallpaper.name).is_file():
                     errors.append(f"Packaged ApexDesktop is missing source wallpaper: {wallpaper.name}")
-            for default in ("Apex-Dark.jpg", "Apex-LockScreen-Dark.jpg"):
+            for default in ("Apex-Default-Dark.jpg", "Apex-LockScreen-Dark.jpg"):
                 if (wallpaper_source / default).is_file() and not (wallpaper_payload / default).is_file():
                     errors.append(f"Packaged ApexDesktop is missing default wallpaper: {default}")
 

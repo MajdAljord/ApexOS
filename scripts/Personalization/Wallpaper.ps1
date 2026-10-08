@@ -1,6 +1,6 @@
 param(
     [ValidateSet('List','Status','Set','Restore','OpenLockScreen')][string]$Mode='Status',
-    [string]$Name='Apex-Dark.jpg'
+    [string]$Name='Apex-Default-Dark.jpg'
 )
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force

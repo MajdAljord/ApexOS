@@ -31,17 +31,17 @@ Get-ChildItem -LiteralPath $payloadRoot -File -Recurse | ForEach-Object {
     $copiedFiles++
 }
 
-$desktopWallpaper = Join-Path $installRoot 'Wallpapers\Apex-Dark.jpg'
+$desktopWallpaper = Join-Path $installRoot 'Wallpapers\Apex-Default-Dark.jpg'
 $lockScreenWallpaper = Join-Path $installRoot 'Wallpapers\Apex-LockScreen-Dark.jpg'
 $wallpaperScript = Join-Path $installRoot 'scripts\Personalization\Wallpaper.ps1'
 if ((Test-Path -LiteralPath $desktopWallpaper -PathType Leaf) -and
     (Test-Path -LiteralPath $wallpaperScript -PathType Leaf)) {
-    & $wallpaperScript -Mode Set -Name 'Apex-Dark.jpg'
+    & $wallpaperScript -Mode Set -Name 'Apex-Default-Dark.jpg'
     if (-not $?) {
         throw 'Apex desktop wallpaper setup failed.'
     }
 } else {
-    Write-Warning 'Apex-Dark.jpg or the Apex wallpaper script is not present; the desktop wallpaper was not changed.'
+    Write-Warning 'Apex-Default-Dark.jpg or the Apex wallpaper script is not present; the desktop wallpaper was not changed.'
 }
 
 Write-Output "Apex OS installed to $installRoot. Copied $copiedFiles files; preserved $preservedWallpapers existing wallpaper files."
