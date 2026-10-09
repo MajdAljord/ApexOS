@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
 
-$apexPlans=@('Apex Ultimate Performance','Apex Performance','Apex Balanced','Apex Power Saver','Apex Laptop Performance')
+$apexPlans=@('Apex Maximum Performance','Apex Ultimate Performance','Apex Performance','Apex Balanced','Apex Power Saver','Apex Laptop Performance','Apex Custom')
 $processorSubgroup='54533251-82be-4824-96c1-47b60b740d00'
 $settings=@{
     Min='893dee8e-2bef-41e0-89c6-b55d0929964c'
@@ -104,7 +104,11 @@ function Ensure-ApexPlan {
     $plans=Get-AvailablePlans
     $existing=$plans|Where-Object { $_.Name -eq $ProfileName }|Select-Object -First 1
     if($existing){return [pscustomobject]@{Plan=$existing;Created=$false;SourceName=$null}}
-    $source=$plans|Where-Object { $_.Name -eq 'Balanced' }|Select-Object -First 1
+    $source=$null
+    if($ProfileName -in @('Apex Maximum Performance','Apex Ultimate Performance')){
+        $source=$plans|Where-Object { $_.Name -eq 'Ultimate Performance' }|Select-Object -First 1
+    }
+    if(-not $source){$source=$plans|Where-Object { $_.Name -eq 'Balanced' }|Select-Object -First 1}
     if(-not $source){$source=Get-ActivePlan}
     $duplicate=Invoke-PowerCfg @('/duplicatescheme',$source.Guid)
     $duplicateText=$duplicate -join ' '
@@ -122,7 +126,7 @@ function Set-ProfilePolicy {
     param([string]$ProfileName,[string]$PlanGuid)
     $results=[Collections.Generic.List[object]]::new()
     switch($ProfileName){
-        'Apex Ultimate Performance' {
+        {$_ -in @('Apex Maximum Performance','Apex Ultimate Performance')} {
             $results.Add((Set-VerifiedProcessorValue $PlanGuid $settings.Min 'AC' 100 'Processor minimum'))
             $results.Add((Set-VerifiedProcessorValue $PlanGuid $settings.Max 'AC' 100 'Processor maximum'))
             $results.Add((Set-VerifiedProcessorValue $PlanGuid $settings.Boost 'AC' 2 'Processor boost mode'))
@@ -231,7 +235,7 @@ try {
         ClonedFrom=$ensured.SourceName
         AppliedSettings=$settingsResult
         SkippedSettings=$skipped
-        BatteryNote=if($Name -eq 'Apex Ultimate Performance' -and $deviceType -match 'Laptop'){ 'Ultimate Performance processor changes apply only on AC; battery values remain cloned from the source plan.' }else{$null}
+        BatteryNote=if($Name -in @('Apex Maximum Performance','Apex Ultimate Performance') -and $deviceType -match 'Laptop'){ 'Maximum performance processor changes apply only on AC; battery values remain cloned from the selected source plan.' }else{$null}
     }
     $log=Write-ApexLog -Action 'Power Plan Select' -Result 'Success' -Message ($result|ConvertTo-Json -Depth 6 -Compress)
     $result|Add-Member -NotePropertyName Log -NotePropertyValue $log

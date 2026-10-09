@@ -7,8 +7,7 @@ Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
 
 function Write-DriverLog {
     param([string]$Action,[string]$Detail)
-    $log=Write-ApexLog -Action $Action -Result 'Success' -Message $Detail
-    "`nLog: $log"
+    $null=Write-ApexLog -Action $Action -Result 'Success' -Message $Detail
 }
 
 try {
@@ -57,14 +56,19 @@ try {
     $devices=@(Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue)
     $inventory=foreach($driver in $allDrivers){
         $device=$devices|Where-Object PNPDeviceID -eq $driver.DeviceID|Select-Object -First 1
+        $errorCode=if($device){[int]$device.ConfigManagerErrorCode}else{$null}
+        $deviceStatus=if(-not $device){'Unknown'}elseif($errorCode -ne 0){"Needs attention (code $errorCode)"}elseif($device.Status -eq 'OK'){'Working'}else{[string]$device.Status}
         [pscustomobject]@{
-            Name=if($driver.DeviceName){$driver.DeviceName}else{'Unknown device'}
-            Status=if($device){$device.Status}else{'Unknown'}
-            ErrorCode=if($device){[int]$device.ConfigManagerErrorCode}else{$null}
+            Name=if($driver.DeviceName){$driver.DeviceName}elseif($device.Name){$device.Name}else{'Unknown device'}
+            Manufacturer=if($driver.Manufacturer){$driver.Manufacturer}elseif($device.Manufacturer){$device.Manufacturer}else{'Unknown'}
+            Status=$deviceStatus
+            ErrorCode=$errorCode
             Provider=$driver.DriverProviderName
             Version=$driver.DriverVersion
             Date=$driver.DriverDate
-            Class=if($device){$device.PNPClass}else{'Unknown'}
+            Class=if($driver.DeviceClass){$driver.DeviceClass}elseif($device.PNPClass){$device.PNPClass}else{'Unknown'}
+            HardwareIds=if($device.HardwareID){@($device.HardwareID) -join '; '}else{'Unavailable'}
+            Service=if($device.Service){$device.Service}else{'Unavailable'}
             InstanceId=$driver.DeviceID
             InfName=$driver.InfName
             IsSigned=$driver.IsSigned

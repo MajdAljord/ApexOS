@@ -1,4 +1,4 @@
-param([ValidateSet('Status','Diagnose','Repair')][string]$Mode='Status')
+param([ValidateSet('Status','Diagnose','Repair','RepairWinsock','RepairTcpIp')][string]$Mode='Status')
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot '..\Modules\Apex.Common.psm1') -Force
 
@@ -20,6 +20,36 @@ function Get-NetworkState {
 try {
     if($Mode -eq 'Status'){'Ready';exit 0}
     $before=Get-NetworkState
+    if($Mode -in @('RepairWinsock','RepairTcpIp')){
+        $backupDirectory=Get-ApexBackupDirectory
+        $backupPath=Join-Path $backupDirectory ("Network-Before-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        $backup=[pscustomobject]@{
+            CapturedAt=(Get-Date -Format o)
+            Adapters=@(Get-NetAdapter -IncludeHidden|Select-Object Name,InterfaceDescription,Status,MacAddress)
+            IpConfiguration=@(Get-NetIPConfiguration|Select-Object InterfaceAlias,InterfaceIndex,IPv4Address,IPv4DefaultGateway,DNSServer)
+            DnsClient=@(Get-DnsClientServerAddress|Select-Object InterfaceAlias,AddressFamily,ServerAddresses)
+            Routes=@(Get-NetRoute -ErrorAction SilentlyContinue|Where-Object DestinationPrefix -eq '0.0.0.0/0'|Select-Object InterfaceAlias,DestinationPrefix,NextHop,RouteMetric)
+        }
+        $backup|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $backupPath -Encoding UTF8
+        if($Mode -eq 'RepairWinsock'){
+            $output=& netsh.exe winsock reset 2>&1
+        }else{
+            $resetLog=Join-Path (Get-ApexLogDirectory) 'Apex-TcpIpReset.log'
+            $output=& netsh.exe int ip reset $resetLog 2>&1
+        }
+        $code=$LASTEXITCODE
+        if($code -ne 0){throw "$Mode failed with exit code ${code}: $($output -join ' ')"}
+        $log=Write-ApexLog -Action "Network $Mode" -Result 'Reset accepted; restart required' -Message "Before=$($before.Category); Backup=$backupPath; Output=$($output -join ' ')"
+        [pscustomobject]@{
+            Change=if($Mode -eq 'RepairWinsock'){'Windows accepted a Winsock catalog reset request.'}else{'Windows accepted a TCP/IP stack reset request.'}
+            RestartRequired=$true
+            Before=$before
+            Backup=$backupPath
+            Log=$log
+            Output=($output -join "`n")
+        }|ConvertTo-Json -Depth 8
+        exit 0
+    }
     $after=$null
     $change='No repair applied; evidence did not identify a safe automatic change.'
     if($Mode -eq 'Repair' -and $before.Category -eq 'DNS' -and $before.GatewayReachable -and $before.InternetTcpReachable){

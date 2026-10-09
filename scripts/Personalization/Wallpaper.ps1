@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('List','Status','Set','Restore','OpenLockScreen')][string]$Mode='Status',
+    [ValidateSet('List','Status','Set','Restore','OpenLockScreen','SetLockScreen')][string]$Mode='Status',
     [string]$Name='Apex-Default-Dark.jpg'
 )
 $ErrorActionPreference='Stop'
@@ -36,6 +36,36 @@ public static class ApexDesktopWallpaper {
     }
 }
 
+function Set-ApexLockScreenWallpaper {
+    param([Parameter(Mandatory)][string]$Path)
+    Add-Type -AssemblyName System.Runtime.WindowsRuntime
+    [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
+
+    if(-not [Windows.System.UserProfile.LockScreen]::IsSupported()){
+        throw 'Windows reports that programmatic lock-screen images are unsupported for this user or device.'
+    }
+
+    $asTaskGeneric=([System.WindowsRuntimeSystemExtensions].GetMethods()|Where-Object {
+        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+    }|Select-Object -First 1)
+    $asTaskAction=([System.WindowsRuntimeSystemExtensions].GetMethods()|Where-Object {
+        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and -not $_.IsGenericMethod
+    }|Select-Object -First 1)
+    if(-not $asTaskGeneric -or -not $asTaskAction){throw 'Windows Runtime async bridges are unavailable in this PowerShell host.'}
+
+    $storageFileTask=$asTaskGeneric.MakeGenericMethod([Windows.Storage.StorageFile]).Invoke($null,@([Windows.Storage.StorageFile]::GetFileFromPathAsync($Path)))
+    $storageFileTask.Wait()
+    $imageFile=$storageFileTask.Result
+    $setTask=$asTaskAction.Invoke($null,@([Windows.System.UserProfile.LockScreen]::SetImageFileAsync($imageFile)))
+    $setTask.Wait()
+
+    $streamTask=$asTaskGeneric.MakeGenericMethod([Windows.Storage.Streams.IRandomAccessStream]).Invoke($null,@([Windows.System.UserProfile.LockScreen]::GetImageStream()))
+    $streamTask.Wait()
+    $stream=$streamTask.Result
+    if(-not $stream -or $stream.Size -le 0){throw 'Windows accepted the lock-screen request but did not return an active lock-screen image stream.'}
+}
+
 try {
     if($Mode -eq 'List'){
         if(Test-Path -LiteralPath $wallpaperDirectory -PathType Container){
@@ -70,6 +100,12 @@ try {
         Start-Process 'ms-settings:lockscreen'
         $log=Write-ApexLog -Action 'Lock Screen Wallpaper' -Result 'Success' -Message "Opened settings for $wallpaper"
         "Opened Windows Lock screen settings. Select $wallpaper manually; Apex does not claim it was applied.`nLog: $log"
+        exit 0
+    }
+    if($Mode -eq 'SetLockScreen'){
+        Set-ApexLockScreenWallpaper -Path $wallpaper
+        $log=Write-ApexLog -Action 'Lock Screen Wallpaper' -Result 'Windows accepted assignment; active stream available' -Message "Requested=$wallpaper; exact active source path is not exposed by the Windows API."
+        "Windows accepted the lock-screen assignment and returned an active image stream. The exact active source path is not exposed for file-identity verification. Requested: $Name. Log: $log"
         exit 0
     }
     Save-ApexRegistrySnapshot -Name 'wallpaper' -Values @(@{Path=$wallpaperKey;Name='WallPaper'})

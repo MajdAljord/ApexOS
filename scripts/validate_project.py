@@ -47,7 +47,9 @@ for action in config.get("actions", []):
 if not config.get("actions"):
     errors.append("Toolbox configuration has no actions")
 for file in root.rglob("*.reg"):
-    if not file.read_text(encoding="utf-8-sig").startswith("Windows Registry Editor Version 5.00"):
+    data = file.read_bytes()
+    encoding = "utf-16" if data.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
+    if not data.decode(encoding).startswith("Windows Registry Editor Version 5.00"):
         errors.append(f"Invalid registry header: {file.relative_to(root)}")
 script_hashes = {}
 for file in (root / "scripts").rglob("*"):
